@@ -1,0 +1,21 @@
+numpy>=1.24
+pandas>=2.0
+pyarrow
+scikit-learn
+joblib
+pyyaml
+fastapi
+uvicorn[standard]
+SQLAlchemy
+alembic
+pydantic
+loguru
+matplotlib
+pytest
+torch
+torchvision
+black
+isort
+ruff
+pre-commit
+web3  # post-25 only — safe to include now

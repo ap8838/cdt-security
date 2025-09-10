@@ -1,0 +1,20 @@
+# Virtualenv
+.venv/
+env/
+venv/
+__pycache__/
+*.pyc
+
+# Data and artifacts
+data/
+artifacts/
+reports/*.png
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
