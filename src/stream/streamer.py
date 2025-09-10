@@ -1,12 +1,15 @@
 import argparse
 import time
+
 import pandas as pd
+
 
 def main(input_path, rate=1):
     df = pd.read_parquet(input_path)
     for _, row in df.iterrows():
         print(row.to_dict())
-        time.sleep(1.0/rate)
+        time.sleep(1.0 / rate)
+
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
