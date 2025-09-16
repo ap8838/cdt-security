@@ -12,11 +12,11 @@ def test_sample_preprocessing(tmp_path):
     artifacts_dir = tmp_path / "artifacts"
 
     datasets = {
-        "iot_fridge": "tests/sample data/IoT_Fridge.csv",
-        "linux_disk1": "tests/sample data/linux_disk_1.csv",
-        "linux_mem1": "tests/sample data/linux_memory1.csv",
-        "linux_proc1": "tests/sample data/linux_process_1.csv",
-        "win7": "tests/sample data/windows7_dataset.csv",
+        "iot_fridge": "tests/sample_data/IoT_Fridge.csv",
+        "linux_disk1": "tests/sample_data/linux_disk_1.csv",
+        "linux_mem1": "tests/sample_data/linux_memory1.csv",
+        "linux_proc1": "tests/sample_data/linux_process_1.csv",
+        "win7": "tests/sample_data/windows7_dataset.csv",
     }
 
     for name, path in datasets.items():
