@@ -45,7 +45,7 @@ def preprocess_dataset(
                 )
                 if df["timestamp"].isna().any():
                     df["timestamp"] = pd.to_datetime(combined, errors="coerce")
-            except Exception:
+            except (ValueError, TypeError):
                 df["timestamp"] = pd.to_datetime(combined, errors="coerce")
             df.drop(columns=["date", "time"], inplace=True, errors="ignore")
         elif "ts" in df.columns:
@@ -77,7 +77,6 @@ def preprocess_dataset(
         scaler = None
         if numeric_cols:
             scaler = MinMaxScaler()
-            # attempt fit on train numeric columns
             scaler.fit(train_df[numeric_cols])
             df[numeric_cols] = scaler.transform(df[numeric_cols])
 
@@ -89,7 +88,6 @@ def preprocess_dataset(
         for col in cat_candidates:
             if col not in df.columns:
                 continue
-            # fit on train (cast to str to avoid mixed-type issues)
             train_values = train_df[col].astype(str)
             unique_vals = train_values.nunique(dropna=True)
 
@@ -98,10 +96,9 @@ def preprocess_dataset(
                 ohe = make_onehot(sparse_output=False, handle_unknown="ignore")
                 ohe.fit(train_values.to_frame())
                 transformed = ohe.transform(df[col].astype(str).to_frame())
-                # category names from training fit
                 try:
                     cats = ohe.categories_[0]
-                except Exception:
+                except AttributeError:
                     cats = [str(i) for i in range(transformed.shape[1])]
                 col_names = [f"{col}_{c}" for c in cats]
                 df_encoded = pd.DataFrame(
@@ -121,13 +118,23 @@ def preprocess_dataset(
                 encoded_cols.append(f"{col}_freq")
 
         # 9. Concatenate encoded parts into df
+        protected = ["asset_id", "timestamp", "label"]  # never drop these
+
         if encoded_parts:
             df = pd.concat(
-                [df.drop(columns=cat_candidates, errors="ignore"), *encoded_parts],
+                [
+                    df.drop(
+                        [c for c in cat_candidates if c not in protected],
+                        errors="ignore",
+                    ),
+                    *encoded_parts,
+                ],
                 axis=1,
             )
         else:
-            df = df.drop(columns=cat_candidates, errors="ignore")
+            df = df.drop(
+                [c for c in cat_candidates if c not in protected], errors="ignore"
+            )
 
         # 10. Fill any remaining NaNs (safety net)
         df = df.fillna(0)
@@ -135,6 +142,13 @@ def preprocess_dataset(
         # 11. Split into train/test (train must be normal-only)
         train = df[df[label_col] == 0].copy()
         test = df.copy()
+
+        # Ensure metadata columns are first
+        cols_order = ["asset_id", "timestamp"] + [
+            c for c in df.columns if c not in ("asset_id", "timestamp")
+        ]
+        train = train[cols_order]
+        test = test[cols_order]
 
         # 12. Save processed files
         train_path = os.path.join(output_dir, f"{dataset_name}_train.parquet")
@@ -169,7 +183,7 @@ def preprocess_dataset(
             f"Class distribution (test):\n{test[label_col].value_counts(normalize=True)}\n"
         )
 
-    except Exception as e:
+    except (ValueError, KeyError, FileNotFoundError, pd.errors.ParserError) as e:
         print(f"⚠️ Failed processing {dataset_name}: {e}")
         traceback.print_exc()
 
