@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 
 import pandas as pd
 import pytest
@@ -59,15 +60,25 @@ def sample_parquet(tmp_path_factory):
 
 def test_train_and_eval(sample_parquet, tmp_path):
     dataset = "iot_fridge"
-    model_dir = tmp_path / "models"
-    report_dir = tmp_path / "reports"
-    model_dir.mkdir()
-    report_dir.mkdir()
+
+    # ✅ Create expected project dirs
+    os.makedirs("data/processed", exist_ok=True)
+    os.makedirs("artifacts/preproc", exist_ok=True)
+    os.makedirs("artifacts/models", exist_ok=True)
+    os.makedirs("artifacts/reports", exist_ok=True)
+
+    # ✅ Copy parquet + features.json into the locations train/eval expect
+    shutil.copy(sample_parquet["train_file"], f"data/processed/{dataset}_train.parquet")
+    shutil.copy(sample_parquet["test_file"], f"data/processed/{dataset}_test.parquet")
+    shutil.copy(
+        sample_parquet["features_file"],
+        f"artifacts/preproc/{dataset}_features.json",
+    )
 
     # ✅ Train
     train_autoencoder(
         dataset=dataset,
-        features_file=sample_parquet["features_file"],
+        features_file=f"artifacts/preproc/{dataset}_features.json",
         epochs=2,  # keep fast
         lr=1e-3,
     )
@@ -75,12 +86,12 @@ def test_train_and_eval(sample_parquet, tmp_path):
     # ✅ Eval
     evaluate_autoencoder(
         dataset=dataset,
-        features_file=sample_parquet["features_file"],
+        features_file=f"artifacts/preproc/{dataset}_features.json",
     )
 
     # Check that artifacts exist
     model_path = f"artifacts/models/{dataset}_ae.pt"
-    report_path = f"reports/{dataset}_ae_eval.json"
+    report_path = f"artifacts/reports/{dataset}_ae_eval.json"
     assert os.path.exists(model_path)
     assert os.path.exists(report_path)
 
