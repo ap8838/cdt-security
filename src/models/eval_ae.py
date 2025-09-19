@@ -4,19 +4,22 @@ import os
 
 import pandas as pd
 import torch
-from sklearn.metrics import (f1_score, precision_score, recall_score,
-                             roc_auc_score)
+from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
+
+from src.utils.seed import set_seed
 
 from .autoencoder import Autoencoder
 
 
-def evaluate_autoencoder(dataset: str, features_file=None):
+def evaluate_autoencoder(dataset: str, features_file=None, seed=42):
+    # ensure reproducibility
+    set_seed(seed)
 
     # paths per dataset
     test_file = f"data/processed/{dataset}_test.parquet"
     model_path = f"artifacts/models/{dataset}_ae.pt"
     threshold_path = f"artifacts/models/{dataset}_threshold.json"
-    report_path = f"reports/{dataset}_ae_eval.json"
+    report_path = f"artifacts/reports/{dataset}_ae_eval.json"
 
     # choose correct features.json if not provided
     if features_file is None:
@@ -93,6 +96,7 @@ if __name__ == "__main__":
         default=None,
         help="Path to features.json (default: artifacts/preproc/{dataset}_features.json)",
     )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
-    evaluate_autoencoder(args.dataset, features_file=args.features_file)
+    evaluate_autoencoder(args.dataset, features_file=args.features_file, seed=args.seed)

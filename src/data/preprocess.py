@@ -192,6 +192,7 @@ if __name__ == "__main__":
     datasets = {
         # IoT
         "iot_fridge": "data/raw/IoT_Fridge.csv",
+        "IoT_Garage_Door.csv": "data/raw/IoT_Fridge.csv",
         "iot_gps": "data/raw/IoT_GPS_Tracker.csv",
         "iot_modbus": "data/raw/IoT_Modbus.csv",
         "iot_motion": "data/raw/IoT_Motion_Light.csv",
