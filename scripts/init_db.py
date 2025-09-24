@@ -1,0 +1,23 @@
+import sqlite3
+
+conn = sqlite3.connect("artifacts/stream/stream.db")
+cur = conn.cursor()
+
+cur.execute(
+    """
+CREATE TABLE IF NOT EXISTS alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  asset_id TEXT,
+  timestamp TEXT,
+  score REAL,
+  model TEXT,
+  threshold REAL,
+  is_anomaly INTEGER,
+  raw TEXT
+)
+"""
+)
+
+conn.commit()
+conn.close()
+print("✅ Alerts table created.")

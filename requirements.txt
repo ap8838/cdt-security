@@ -6,6 +6,7 @@ joblib
 pyyaml
 fastapi
 uvicorn[standard]
+requests
 SQLAlchemy
 alembic
 pydantic
