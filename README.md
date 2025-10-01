@@ -20,11 +20,7 @@ Generate processed parquet files + preprocessing artifacts.
 
 python -m src.data.preprocess
 
-2. Run tests
-
-pytest
-
-3. Train models 
+2. Train models 
 
 Autoencoder (AE):
 
@@ -37,13 +33,13 @@ GANomaly:
 
 python scripts/run_all_ganomaly.py
 
-4. Local inference test
+3. Local inference test
 
 Run a single event against a trained model.
 
 python -m src.models.infer --dataset iot_fridge --event event.json
 
-5. Start API 
+4. Start API 
 uvicorn src.api.main:app --reload --port 8000
 
 
@@ -57,7 +53,7 @@ Example input:
   "features": { "fridge_temperature": 999 }
 }
 
-6. Test API
+5. Test API
 python scripts/test_api.py
 
 
@@ -65,7 +61,7 @@ Manual PowerShell example:
 
 Invoke-RestMethod -Uri http://127.0.0.1:8000/score -Method Post -Headers @{"Content-Type" = "application/json"} -Body '{"asset_id":"iot_fridge","timestamp":"2025-09-24T12:00:00Z","features":{"fridge_temperature":999}}'
 
-7. Run streaming simulator 
+6. Run streaming simulator 
 
 Without API (DB + stdout only):
 
@@ -91,3 +87,7 @@ python scripts/query_db.py --tail --interval 2
 
 # view asset_state
 python scripts/query_db.py --asset-state --limit 10
+
+7. Run tests
+
+pytest
