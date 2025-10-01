@@ -3,7 +3,9 @@ import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.service.infer_service import InferenceService
@@ -22,9 +24,10 @@ class Event(BaseModel):
 # DB setup
 # -----------------------
 ALERTS_DB = Path("artifacts/stream/stream.db")
+ASSET_STATE_DB = ALERTS_DB  # same SQLite file
 
 
-def _ensure_alerts_table(conn):
+def _ensure_alerts_table(conn: sqlite3.Connection):
     cur = conn.cursor()
     cur.execute(
         """
@@ -47,16 +50,13 @@ def _ensure_alerts_table(conn):
 # Lifespan (startup/shutdown)
 # -----------------------
 @asynccontextmanager
-async def lifespan(app_instance: FastAPI):  # <-- renamed param to avoid shadow
-    # Startup: ensure DB + table exist
+async def lifespan(_app: FastAPI):  # `_app` required but unused
     ALERTS_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(ALERTS_DB))
     _ensure_alerts_table(conn)
     conn.close()
-
-    yield  # API runs here
-
-    # Shutdown: nothing extra for now
+    yield
+    # nothing on shutdown
 
 
 # -----------------------
@@ -64,7 +64,21 @@ async def lifespan(app_instance: FastAPI):  # <-- renamed param to avoid shadow
 # -----------------------
 app = FastAPI(title="Anomaly Detection API", lifespan=lifespan)
 
-# Initialize model service
+# Enable CORS for UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # in prod, restrict to UI domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve built UI if exists
+ui_dist = Path("ui/dist")
+if ui_dist.exists():
+    app.mount("/", StaticFiles(directory=str(ui_dist), html=True), name="ui")
+
+# Initialize inference service
 service = InferenceService(dataset="iot_fridge", model_type="ganomaly")
 
 
@@ -72,11 +86,12 @@ service = InferenceService(dataset="iot_fridge", model_type="ganomaly")
 # DB logging
 # -----------------------
 def log_alert(result: dict, raw_event: dict):
-    """Insert an alert row if anomaly was detected"""
-    try:
-        if not result.get("is_anomaly"):
-            return
+    """Insert an alert row if anomaly detected."""
+    if not result.get("is_anomaly"):
+        return
 
+    conn = None
+    try:
         conn = sqlite3.connect(str(ALERTS_DB))
         _ensure_alerts_table(conn)
         cur = conn.cursor()
@@ -96,23 +111,73 @@ def log_alert(result: dict, raw_event: dict):
             ),
         )
         conn.commit()
-        conn.close()
-    except Exception as e:
-        print("⚠️ Failed to log alert:", e)
+    except sqlite3.Error as db_err:
+        print("⚠️ DB logging error:", db_err)
+    except Exception as err:
+        print("⚠️ Unexpected logging error:", err)
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+@app.get("/alerts")
+def get_alerts(limit: int = Query(100, ge=1, le=1000), since_id: int = 0):
+    """Return latest alerts."""
+    conn = None
+    try:
+        conn = sqlite3.connect(str(ALERTS_DB))
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM alerts WHERE id > ? ORDER BY id DESC LIMIT ?",
+            (since_id, limit),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            if "raw" in r and r["raw"]:
+                try:
+                    r["raw"] = json.loads(r["raw"])
+                except json.JSONDecodeError:
+                    pass
+        return rows
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+@app.get("/assets")
+def get_assets():
+    """Return asset IDs and their last seen timestamp."""
+    conn = None
+    try:
+        conn = sqlite3.connect(str(ASSET_STATE_DB))
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT asset_id, MAX(timestamp) as last_ts FROM asset_state GROUP BY asset_id"
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        return rows
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # -----------------------
-# API endpoint
+# API endpoints
 # -----------------------
 @app.post("/score")
 def score_event(event: Event):
+    """Run inference on a single event and log anomaly if detected."""
     payload = {"asset_id": event.asset_id, "timestamp": event.timestamp}
     payload.update(event.features or {})
     result = service.score(payload)
 
     try:
         log_alert(result, event.model_dump())
-    except Exception as e:
-        print("⚠️ log_alert failed:", e)
+    except Exception as err:
+        print("⚠️ log_alert failed:", err)
 
     return result
