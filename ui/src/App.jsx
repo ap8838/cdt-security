@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+ import React, { useEffect, useState, useRef } from "react";
 import { fetchAlerts, fetchAssets } from "./api";
 import AlertsTable from "./components/AlertsTable";
 import ScoreChart from "./components/ScoreChart";
@@ -51,7 +51,8 @@ export default function App() {
                 Showing <strong>{filtered.length}</strong> alerts
               </div>
             </div>
-            <ManualTestForm />
+            {/* ✅ Pass assets into ManualTestForm */}
+            <ManualTestForm assets={assets} />
           </div>
 
           <ScoreChart data={filtered} />
