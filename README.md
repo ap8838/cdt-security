@@ -88,6 +88,73 @@ python scripts/query_db.py --tail --interval 2
 # view asset_state
 python scripts/query_db.py --asset-state --limit 10
 
-7. Run tests
+7. Start Ganache
+
+Run Ganache locally:
+
+npx ganache
+
+
+It will display accounts and private keys.
+Copy one of the private keys and set it in your .env file:
+
+WEB3_PROVIDER=http://127.0.0.1:8545
+PRIVATE_KEY=0x6947281498207d796e56b32de979b24ee4e1b2dc4fbe50b663b6f60875e9c257
+CHAIN_ID=1337
+
+8. Deploy the smart contract
+
+Deploy the AlertRegistry contract to Ganache:
+
+python src/blockchain/deploy_contract.py
+
+
+You’ll see output like:
+
+🎉 Contract deployed at: 0x63783aA31b8A226F5E87aEDB5e60395560Ae122f
+💾 Wrote contract artifact to: artifacts/blockchain/AlertRegistry.json
+
+9.  Start the API
+uvicorn src.api.main:app --reload --port 8000
+
+
+You should see:
+
+✅ Blockchain client initialized
+✅ Alert written to blockchain: <tx_hash>
+
+10. Generate and log an alert
+Invoke-RestMethod -Uri http://127.0.0.1:8000/score -Method Post -Headers @{"Content-Type" = "application/json"} -Body '{"asset_id":"iot_fridge","timestamp":"2025-10-06T12:00:00Z","features":{"fridge_temperature":999}}'
+
+
+Then check alerts:
+
+Invoke-RestMethod -Uri http://127.0.0.1:8000/alerts
+
+
+You’ll see:
+
+tx_hash : 1cb0f6f09bed182d052c932880f5b39dba253b371119a70ccb2edd7bdd47dc72
+
+11. Verify alert on blockchain
+
+Check the on-chain record for a given hash:
+
+python -m src.blockchain.verify_alert 0x1cb0f6f09bed182d052c932880f5b39dba253b371119a70ccb2edd7bdd47dc72
+
+
+Expected output:
+
+On-chain record: {
+  'alertHash': '0x1cb0f6f09bed182d052c932880f5b39dba253b371119a70ccb2edd7bdd47dc72',
+  'timestamp': 0,
+  'asset_id': '',
+  'submitter': '0x0000000000000000000000000000000000000000'
+}
+
+
+(The default contract stores hashes only; extended metadata storage can be added later.)
+
+12. Run tests
 
 pytest

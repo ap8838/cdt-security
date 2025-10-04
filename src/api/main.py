@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from src.blockchain.client import BlockchainClient
 from src.service.infer_service import InferenceService
 
 
@@ -28,6 +29,7 @@ ASSET_STATE_DB = ALERTS_DB  # same SQLite file
 
 
 def _ensure_alerts_table(conn: sqlite3.Connection):
+    """Ensure alerts table exists (add tx_hash column if missing)."""
     cur = conn.cursor()
     cur.execute(
         """
@@ -44,6 +46,13 @@ def _ensure_alerts_table(conn: sqlite3.Connection):
         """
     )
     conn.commit()
+
+    # Check and add tx_hash column if not present
+    cur.execute("PRAGMA table_info(alerts)")
+    cols = [r[1] for r in cur.fetchall()]
+    if "tx_hash" not in cols:
+        cur.execute("ALTER TABLE alerts ADD COLUMN tx_hash TEXT")
+        conn.commit()
 
 
 # -----------------------
@@ -81,24 +90,43 @@ if ui_dist.exists():
 # Initialize inference service
 service = InferenceService(dataset="iot_fridge", model_type="ganomaly")
 
+# Initialize blockchain client
+try:
+    bc_client = BlockchainClient()
+    print("✅ Blockchain client initialized")
+except Exception as e:
+    print("⚠️ Blockchain not initialized:", e)
+    bc_client = None
+
 
 # -----------------------
-# DB logging
+# DB + Blockchain logging
 # -----------------------
 def log_alert(result: dict, raw_event: dict):
-    """Insert an alert row if anomaly detected."""
+    """Insert an alert row and optionally write to blockchain."""
     if not result.get("is_anomaly"):
         return
 
     conn = None
+    tx_hash = None
+
+    # --- Try blockchain write ---
+    if bc_client:
+        try:
+            tx_hash = bc_client.register_alert(result, result.get("asset_id"))
+            print(f"✅ Alert written to blockchain: {tx_hash}")
+        except Exception as chain_err:
+            print("⚠️ Blockchain write failed:", chain_err)
+
+    # --- Always log to DB ---
     try:
         conn = sqlite3.connect(str(ALERTS_DB))
         _ensure_alerts_table(conn)
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO alerts (asset_id, timestamp, score, model, threshold, is_anomaly, raw)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alerts (asset_id, timestamp, score, model, threshold, is_anomaly, raw, tx_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result.get("asset_id"),
@@ -108,6 +136,7 @@ def log_alert(result: dict, raw_event: dict):
                 float(result.get("threshold", 0.0)),
                 int(bool(result.get("is_anomaly"))),
                 json.dumps(raw_event, default=str),
+                tx_hash or "",
             ),
         )
         conn.commit()
@@ -120,6 +149,9 @@ def log_alert(result: dict, raw_event: dict):
             conn.close()
 
 
+# -----------------------
+# API endpoints
+# -----------------------
 @app.get("/alerts")
 def get_alerts(limit: int = Query(100, ge=1, le=1000), since_id: int = 0):
     """Return latest alerts."""
@@ -165,9 +197,6 @@ def get_assets():
             conn.close()
 
 
-# -----------------------
-# API endpoints
-# -----------------------
 @app.post("/score")
 def score_event(event: Event):
     """Run inference on a single event and log anomaly if detected."""

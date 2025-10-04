@@ -19,4 +19,6 @@ black
 isort
 ruff
 pre-commit
-web3  # post-25 only — safe to include now
+web3  
+python-dotenv
+
