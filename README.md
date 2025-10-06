@@ -155,6 +155,64 @@ On-chain record: {
 
 (The default contract stores hashes only; extended metadata storage can be added later.)
 
-12. Run tests
+12. Train the cGAN
+python -m src.adversarial.train_cgan \
+  --parquet data/processed/iot_fridge_test.parquet \
+  --features artifacts/preproc/iot_fridge_features.json \
+  --scaler artifacts/preproc/iot_fridge_scaler.pkl \
+  --encoders artifacts/preproc/iot_fridge_encoders.pkl \
+  --out artifacts/adversarial/iot_fridge_cgan.pt \
+  --epochs 60 --batch-size 256 --z-dim 64
+
+
+✅ Expected Output:
+
+✅ Loaded encoders from artifacts/preproc/iot_fridge_encoders.pkl
+⚠️ Used fallback LabelEncoder for temp_condition
+Epoch 1/60  D_loss=0.86  G_loss=1.30
+...
+Saved cGAN to artifacts/adversarial/iot_fridge_cgan.pt
+
+13. Generate synthetic samples
+python -m src.adversarial.generate_samples \
+  --model artifacts/adversarial/iot_fridge_cgan.pt \
+  --features artifacts/preproc/iot_fridge_features.json \
+  --n 100 \
+  --out artifacts/adversarial/generated.parquet
+
+
+✅ Output:
+
+Wrote artifacts/adversarial/generated.parquet
+
+
+To send generated samples directly to API:
+
+python -m src.adversarial.generate_samples \
+  --model artifacts/adversarial/iot_fridge_cgan.pt \
+  --features artifacts/preproc/iot_fridge_features.json \
+  --n 10 \
+  --post http://127.0.0.1:8000/score
+
+14. Evaluate generated samples
+python -m src.adversarial.eval_generated \
+  --parquet artifacts/adversarial/generated.parquet \
+  --dataset iot_fridge \
+  --model ganomaly \
+  --out artifacts/adversarial/eval.csv
+
+
+✅ Output:
+
+Wrote artifacts/adversarial/eval.csv
+
+
+To view basic statistics:
+
+import pandas as pd
+df = pd.read_parquet("artifacts/adversarial/generated.parquet")
+print(df.describe())
+
+15. Run tests
 
 pytest

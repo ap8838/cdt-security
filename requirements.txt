@@ -19,6 +19,6 @@ black
 isort
 ruff
 pre-commit
-web3  
+web3
 python-dotenv
 
