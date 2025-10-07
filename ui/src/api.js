@@ -10,3 +10,12 @@ export const fetchAssets = () =>
 
 export const postScore = (payload) =>
   axios.post(`${API_BASE}/score`, payload).then(r => r.data);
+
+export const fetchBlockRecord = (tx_hash) =>
+  axios.get(`${API_BASE}/blockchain/verify?tx_hash=${encodeURIComponent(tx_hash)}`).then(r => r.data);
+
+export const generateSamples = (payload) =>
+  axios.post(`${API_BASE}/adversarial/generate`, payload).then(r => r.data);
+
+export const fetchMetrics = () =>
+  axios.get(`${API_BASE}/metrics`).then(r => r.data);
