@@ -17,6 +17,7 @@ CHAIN_ID = int(os.getenv("CHAIN_ID", "1337"))
 
 class BlockchainClient:
     def __init__(self, provider_url: str = None, private_key: str = None):
+        """Initialize blockchain connection and load smart contract."""
         self.provider_url = provider_url or WEB3_PROVIDER
         self.w3 = Web3(Web3.HTTPProvider(self.provider_url))
         if not self.w3.is_connected():  # type: ignore[attr-defined]
@@ -40,17 +41,21 @@ class BlockchainClient:
 
         self.account = self.w3.eth.account.from_key(self.private_key)
 
-    def register_alert(self, alert_obj: dict, asset_id: str) -> str:
+    def register_alert(
+        self, alert_obj: dict, asset_id: str, dataset: str = None
+    ) -> str:
         """
         Stores a deterministic keccak hash of alert_obj on-chain.
-        Returns the sent transaction hash hex string.
+        Optionally includes dataset name in the asset_id tag for traceability.
         """
+        asset_tag = f"{dataset}:{asset_id}" if dataset else asset_id
+
         alert_json = json.dumps(alert_obj, sort_keys=True, separators=(",", ":"))
         alert_hash = self.w3.keccak(text=alert_json)  # bytes32
 
         nonce = self.w3.eth.get_transaction_count(self.account.address)
         txn = self.contract.functions.registerAlert(
-            alert_hash, asset_id
+            alert_hash, asset_tag
         ).build_transaction(
             {
                 "from": self.account.address,
@@ -64,14 +69,15 @@ class BlockchainClient:
         signed = self.account.sign_transaction(txn)
         tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
-        # Wait for confirmation (we don’t need the receipt object explicitly)
+        # Wait for confirmation
         self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
         return tx_hash.hex()
 
     def lookup_alert(self, alert_hash_hex: str):
         """
-        Read the on-chain entry (if any). `alert_hash_hex` should be 0x... hex string.
+        Reads the on-chain entry (if any).
+        `alert_hash_hex` should be 0x... hex string.
         """
         if not alert_hash_hex.startswith("0x"):
             alert_hash_hex = "0x" + alert_hash_hex

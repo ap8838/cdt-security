@@ -8,8 +8,15 @@ export const fetchAlerts = (limit = 100, since_id = 0) =>
 export const fetchAssets = () =>
   axios.get(`${API_BASE}/assets`).then(r => r.data);
 
-export const postScore = (payload) =>
-  axios.post(`${API_BASE}/score`, payload).then(r => r.data);
+export const fetchDatasets = () =>
+  axios.get(`${API_BASE}/datasets`).then(r => r.data.datasets);
+
+export const postScore = (payload, dataset = null) => {
+  const url = dataset
+    ? `${API_BASE}/score/${dataset}`
+    : `${API_BASE}/score`;
+  return axios.post(url, payload).then(r => r.data);
+};
 
 export const fetchBlockRecord = (tx_hash) =>
   axios.get(`${API_BASE}/blockchain/verify?tx_hash=${encodeURIComponent(tx_hash)}`).then(r => r.data);

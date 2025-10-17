@@ -1,6 +1,7 @@
 import json
 import sqlite3
 from contextlib import asynccontextmanager
+from glob import glob
 from pathlib import Path
 
 from fastapi import FastAPI, Query
@@ -12,24 +13,24 @@ from src.blockchain.client import BlockchainClient
 from src.service.infer_service import InferenceService
 
 
-# -----------------------
-# Request schema
-# -----------------------
+# -----------------------------
+# Base Models
+# -----------------------------
 class Event(BaseModel):
     asset_id: str
     timestamp: str
     features: dict
 
 
-# -----------------------
-# DB setup
-# -----------------------
+# -----------------------------
+# Database setup
+# -----------------------------
 ALERTS_DB = Path("artifacts/stream/stream.db")
-ASSET_STATE_DB = ALERTS_DB  # same SQLite file
+ASSET_STATE_DB = ALERTS_DB
 
 
 def _ensure_alerts_table(conn: sqlite3.Connection):
-    """Ensure alerts table exists (add tx_hash column if missing)."""
+    """Ensures the alerts table exists."""
     cur = conn.cursor()
     cur.execute(
         """
@@ -41,56 +42,43 @@ def _ensure_alerts_table(conn: sqlite3.Connection):
             model TEXT,
             threshold REAL,
             is_anomaly INTEGER,
-            raw TEXT
+            raw TEXT,
+            tx_hash TEXT
         )
         """
     )
     conn.commit()
 
-    # Check and add tx_hash column if not present
-    cur.execute("PRAGMA table_info(alerts)")
-    cols = [r[1] for r in cur.fetchall()]
-    if "tx_hash" not in cols:
-        cur.execute("ALTER TABLE alerts ADD COLUMN tx_hash TEXT")
-        conn.commit()
 
-
-# -----------------------
-# Lifespan (startup/shutdown)
-# -----------------------
 @asynccontextmanager
-async def lifespan(_app: FastAPI):  # `_app` required but unused
+async def lifespan(_app: FastAPI):
+    """FastAPI lifecycle manager."""
     ALERTS_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(ALERTS_DB))
     _ensure_alerts_table(conn)
     conn.close()
     yield
-    # nothing on shutdown
 
 
-# -----------------------
-# FastAPI app
-# -----------------------
+# -----------------------------
+# App Initialization
+# -----------------------------
 app = FastAPI(title="Anomaly Detection API", lifespan=lifespan)
 
-# Enable CORS for UI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in prod, restrict to UI domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve built UI if exists
+# Serve frontend if built
 ui_dist = Path("ui/dist")
 if ui_dist.exists():
     app.mount("/", StaticFiles(directory=str(ui_dist), html=True), name="ui")
 
-# Initialize inference service
-service = InferenceService(dataset="iot_fridge", model_type="ganomaly")
-
-# Initialize blockchain client
+# Blockchain
 try:
     bc_client = BlockchainClient()
     print("✅ Blockchain client initialized")
@@ -99,18 +87,18 @@ except Exception as e:
     bc_client = None
 
 
-# -----------------------
-# DB + Blockchain logging
-# -----------------------
+# -----------------------------
+# Helper Functions
+# -----------------------------
 def log_alert(result: dict, raw_event: dict):
-    """Insert an alert row and optionally write to blockchain."""
+    """Insert alert row into DB and blockchain (if enabled)."""
     if not result.get("is_anomaly"):
         return
 
-    conn = None
     tx_hash = None
+    conn = None
 
-    # --- Try blockchain write ---
+    # Write to blockchain
     if bc_client:
         try:
             tx_hash = bc_client.register_alert(result, result.get("asset_id"))
@@ -118,7 +106,6 @@ def log_alert(result: dict, raw_event: dict):
         except Exception as chain_err:
             print("⚠️ Blockchain write failed:", chain_err)
 
-    # --- Always log to DB ---
     try:
         conn = sqlite3.connect(str(ALERTS_DB))
         _ensure_alerts_table(conn)
@@ -140,21 +127,71 @@ def log_alert(result: dict, raw_event: dict):
             ),
         )
         conn.commit()
-    except sqlite3.Error as db_err:
-        print("⚠️ DB logging error:", db_err)
     except Exception as err:
-        print("⚠️ Unexpected logging error:", err)
+        print("⚠️ DB logging error:", err)
     finally:
         if conn is not None:
             conn.close()
 
 
-# -----------------------
-# API endpoints
-# -----------------------
+# -----------------------------
+# API ROUTES
+# -----------------------------
+
+
+@app.post("/score/{dataset}")
+def score_event_dataset(dataset: str, event: Event):
+    """
+    Score an event for a specific dataset.
+    """
+    payload = {"asset_id": event.asset_id, "timestamp": event.timestamp}
+    payload.update(event.features or {})
+
+    dyn_service = InferenceService(dataset=dataset, model_type="ganomaly")
+    result = dyn_service.score(payload)
+    log_alert(result, event.model_dump())
+    return result
+
+
+@app.post("/score")
+def score_event(event: Event):
+    """
+    Auto-select dataset based on asset_id prefix.
+    """
+    asset_prefix = event.asset_id.split("_")[0] if "_" in event.asset_id else None
+    available_datasets = [
+        Path(p).stem.replace("_ae", "") for p in glob("artifacts/models/*_ae.pt")
+    ]
+    dataset = (
+        asset_prefix if asset_prefix in available_datasets else available_datasets[0]
+    )
+
+    dyn_service = InferenceService(dataset=dataset, model_type="ganomaly")
+    payload = {"asset_id": event.asset_id, "timestamp": event.timestamp}
+    payload.update(event.features or {})
+
+    result = dyn_service.score(payload)
+    log_alert(result, event.model_dump())
+    return result
+
+
+@app.get("/datasets")
+def list_datasets():
+    """
+    Return list of all available trained datasets (AE and GANomaly).
+    """
+    models = sorted(
+        {Path(p).stem.replace("_ae", "") for p in glob("artifacts/models/*_ae.pt")}
+        | {
+            Path(p).stem.replace("_ganomaly", "")
+            for p in glob("artifacts/models/*_ganomaly.pt")
+        }
+    )
+    return {"datasets": models}
+
+
 @app.get("/alerts")
 def get_alerts(limit: int = Query(100, ge=1, le=1000), since_id: int = 0):
-    """Return latest alerts."""
     conn = None
     try:
         conn = sqlite3.connect(str(ALERTS_DB))
@@ -179,7 +216,6 @@ def get_alerts(limit: int = Query(100, ge=1, le=1000), since_id: int = 0):
 
 @app.get("/assets")
 def get_assets():
-    """Return asset IDs and their last seen timestamp."""
     conn = None
     try:
         conn = sqlite3.connect(str(ASSET_STATE_DB))
@@ -197,35 +233,13 @@ def get_assets():
             conn.close()
 
 
-@app.post("/score")
-def score_event(event: Event):
-    """Run inference on a single event and log anomaly if detected."""
-    payload = {"asset_id": event.asset_id, "timestamp": event.timestamp}
-    payload.update(event.features or {})
-    result = service.score(payload)
-
-    try:
-        log_alert(result, event.model_dump())
-    except Exception as err:
-        print("⚠️ log_alert failed:", err)
-
-    return result
-
-
 @app.get("/metrics")
 def get_metrics():
-    """Return placeholder evaluation metrics."""
-    return {
-        "precision": 0.951,
-        "recall": 0.934,
-        "f1": 0.942,
-        "roc_auc": 0.977,
-    }
+    return {"precision": 0.951, "recall": 0.934, "f1": 0.942, "roc_auc": 0.977}
 
 
 @app.post("/adversarial/generate")
-def generate_adversarial_samples():  # FIX: Removed unused 'payload' parameter
-    """Trigger adversarial sample generation (placeholder)."""
+def generate_adversarial_samples():
     return {
         "status": "ok",
         "generated": 10,
@@ -235,14 +249,9 @@ def generate_adversarial_samples():  # FIX: Removed unused 'payload' parameter
 
 @app.get("/blockchain/verify")
 def verify_blockchain_record(tx_hash: str):
-    """Verify blockchain alert record."""
     if not bc_client:
         return {"error": "Blockchain not connected"}
-
     try:
-        info = bc_client.lookup_alert(tx_hash)
-        return info
-    except (
-        Exception
-    ) as bc_err:  # FIX: Renamed 'e' to 'bc_err' to avoid shadowing warning
+        return bc_client.lookup_alert(tx_hash)
+    except Exception as bc_err:
         return {"error": str(bc_err)}

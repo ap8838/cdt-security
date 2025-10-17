@@ -1,14 +1,14 @@
 import argparse
+import glob
 import json
 from pathlib import Path
 
 import joblib
 import pandas as pd
 import torch
+from autoencoder import Autoencoder
 
 from src.utils.seed import set_seed
-
-from .autoencoder import Autoencoder
 
 
 def infer_event(dataset: str, event_dict: dict, seed=42):
@@ -38,7 +38,7 @@ def infer_event(dataset: str, event_dict: dict, seed=42):
     for col, (enc_type, encoder) in encoders.items():
         if col in df.columns:
             if enc_type == "onehot":
-                df[col] = df[col].astype(str)  # <-- cast to string for safety
+                df[col] = df[col].astype(str)
                 transformed = encoder.transform(df[[col]])
                 new_cols = encoder.get_feature_names_out([col])
                 df[new_cols] = transformed
@@ -77,6 +77,7 @@ def infer_event(dataset: str, event_dict: dict, seed=42):
         error = torch.mean((x_tensor - recon) ** 2, dim=1).cpu().item()
 
     return {
+        "dataset": dataset,
         "score": float(error),
         "threshold": float(threshold),
         "is_anomaly": bool(error > threshold),
@@ -85,33 +86,36 @@ def infer_event(dataset: str, event_dict: dict, seed=42):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, help="Dataset name")
     parser.add_argument(
-        "--event",
-        required=True,
-        help="Either JSON string (inline) or path to JSON file.",
+        "--dataset", help="Dataset name (e.g. iot_fridge). If omitted, runs all."
     )
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--event", required=True, help="Either JSON string or path to JSON file."
+    )
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     event_input = args.event.strip()
     event_path = Path(event_input)
 
-    # Check if it's a file path
     if event_path.is_file():
         with event_path.open(encoding="utf-8") as ev_file:
             payload = json.load(ev_file)
     else:
-        # Inline JSON string
         if event_input.startswith("'") and event_input.endswith("'"):
             event_input = event_input[1:-1]
         event_input = event_input.replace("'", '"')
-        try:
-            payload = json.loads(event_input)
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Failed to parse JSON string: {event_input}\nOriginal error: {e}"
-            )
+        payload = json.loads(event_input)
 
-    result_dict = infer_event(args.dataset, payload, seed=args.seed)
-    print(json.dumps(result_dict, indent=2))
+    datasets = []
+    if args.dataset:
+        datasets = [args.dataset]
+    else:
+        datasets = [
+            Path(f).stem.replace("_ae", "")
+            for f in glob.glob("artifacts/models/*_ae.pt")
+        ]
+
+    for ds in datasets:
+        result_dict = infer_event(ds, payload, seed=args.seed)
+        print(json.dumps(result_dict, indent=2))

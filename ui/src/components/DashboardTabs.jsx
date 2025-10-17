@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { fetchAlerts, fetchAssets } from "../api";
+import { fetchAlerts, fetchAssets, fetchDatasets } from "../api";
 import AlertsTable from "./AlertsTable";
 import ScoreChart from "./ScoreChart";
 import AssetSelector from "./AssetSelector";
@@ -9,13 +9,16 @@ import SimulationTab from "./SimulationTab";
 import MetricsTab from "./MetricsTab";
 
 export default function DashboardTabs() {
-  const [tab, setTab] = useState("overview"); // overview | blockchain | simulation | metrics
+  const [tab, setTab] = useState("overview");
   const [alerts, setAlerts] = useState([]);
   const [assets, setAssets] = useState([]);
   const [asset, setAsset] = useState(null);
+  const [datasets, setDatasets] = useState([]);
+  const [dataset, setDataset] = useState("");
   const pollingRef = useRef(null);
 
   useEffect(() => {
+    loadDatasets();
     loadAssets();
     loadAlerts();
 
@@ -38,6 +41,10 @@ export default function DashboardTabs() {
     fetchAssets().then(setAssets).catch(console.error);
   }
 
+  function loadDatasets() {
+    fetchDatasets().then(setDatasets).catch(console.error);
+  }
+
   const filtered = asset ? alerts.filter((a) => a.asset_id === asset) : alerts;
 
   return (
@@ -45,30 +52,15 @@ export default function DashboardTabs() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">CDT Security — Dashboard</h1>
         <div className="flex gap-2">
-          <button
-            className={`px-3 py-1 rounded ${tab === "overview" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setTab("overview")}
-          >
-            Overview
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${tab === "blockchain" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setTab("blockchain")}
-          >
-            Blockchain
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${tab === "simulation" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setTab("simulation")}
-          >
-            Simulation
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${tab === "metrics" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-            onClick={() => setTab("metrics")}
-          >
-            Metrics
-          </button>
+          {["overview", "blockchain", "simulation", "metrics"].map((t) => (
+            <button
+              key={t}
+              className={`px-3 py-1 rounded ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+              onClick={() => setTab(t)}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -77,10 +69,25 @@ export default function DashboardTabs() {
           <div className="md:col-span-2 bg-white p-4 rounded shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
+                <select
+                  value={dataset || ""}
+                  onChange={(e) => setDataset(e.target.value || "")}
+                  className="border px-2 py-1 rounded"
+                >
+                  <option value="">-- select dataset --</option>
+                  {datasets.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+
                 <AssetSelector assets={assets} selected={asset} onChange={setAsset} />
-                <div className="text-sm text-gray-600">Showing <strong>{filtered.length}</strong> alerts</div>
+                <div className="text-sm text-gray-600">
+                  Showing <strong>{filtered.length}</strong> alerts
+                </div>
               </div>
-              <ManualTestForm assets={assets} />
+              <ManualTestForm assets={assets} dataset={dataset} />
             </div>
 
             <ScoreChart data={filtered} />
@@ -99,7 +106,6 @@ export default function DashboardTabs() {
         <SimulationTab
           assets={assets}
           onGenerated={() => {
-            // after generation we refresh alerts + assets
             loadAlerts();
             loadAssets();
           }}

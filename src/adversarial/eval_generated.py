@@ -1,40 +1,52 @@
-"""
-Take generated.parquet and compute scores using existing inference model.
-Outputs a CSV/JSON with scores so you can compare detection rates.
-Example:
-  python -m src.adversarial.eval_generated --parquet artifacts/adversarial/generated.parquet --out artifacts/adversarial/eval.csv
-"""
-
 import argparse
+import glob
+import os
 
 import pandas as pd
 
 from src.service.infer_service import InferenceService
 
 
-def eval_generated(parsed_args):  # Renamed 'args' to 'parsed_args'
-    df = pd.read_parquet(parsed_args.parquet)
-    svc = InferenceService(dataset=parsed_args.dataset, model_type=parsed_args.model)
+def eval_generated_one(parquet, dataset, model, out):
+    df = pd.read_parquet(parquet)
+    svc = InferenceService(dataset=dataset, model_type=model)
     rows = []
     for _, r in df.iterrows():
-        evt = {"asset_id": r["asset_id"], "timestamp": r["timestamp"]}
-        # Access columns from the DataFrame using the DataFrame's column names
+        evt = {
+            "asset_id": r.get("asset_id", dataset),
+            "timestamp": r.get("timestamp", ""),
+        }
         features = {
             c: r[c] for c in df.columns if c not in ("asset_id", "timestamp", "label")
         }
         evt.update(features)
         res = svc.score(evt)
         rows.append({**res, "raw_features": features})
-    out = pd.DataFrame(rows)
-    out.to_csv(parsed_args.out, index=False)
-    print("Wrote", parsed_args.out)
+    out_df = pd.DataFrame(rows)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    out_df.to_csv(out, index=False)
+    print(f"✅ Wrote evaluation for {dataset} → {out}")
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--parquet", help="Path to generated parquet or directory", default=None
+    )
+    p.add_argument("--out", default="artifacts/adversarial/eval.csv")
+    p.add_argument("--dataset", default="all")
+    p.add_argument("--model", default="ganomaly")
+    args = p.parse_args()
+
+    if args.dataset == "all":
+        files = glob.glob("artifacts/adversarial/*_generated.parquet")
+        for parquet in files:
+            dataset = os.path.basename(parquet).replace("_generated.parquet", "")
+            out = f"artifacts/adversarial/{dataset}_eval.csv"
+            eval_generated_one(parquet, dataset, args.model, out)
+    else:
+        eval_generated_one(args.parquet, args.dataset, args.model, args.out)
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--parquet", required=True)
-    p.add_argument("--out", default="artifacts/adversarial/eval.csv")
-    p.add_argument("--dataset", default="iot_fridge")
-    p.add_argument("--model", default="ganomaly")
-    args = p.parse_args()
-    eval_generated(args)
+    main()
