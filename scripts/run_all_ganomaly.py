@@ -1,3 +1,4 @@
+# scripts/run_all_ganomaly.py
 import glob
 import os
 import subprocess
@@ -15,7 +16,7 @@ def run_all_ganomaly():
         dataset = os.path.basename(train_file).replace("_train.parquet", "")
         print(f"\n🚀 Running GANomaly for dataset: {dataset}")
 
-        # 2. Train GANomaly
+        # 2️⃣ Train GANomaly with tuned λ values (you can adjust globally here)
         subprocess.run(
             [
                 "python",
@@ -24,16 +25,26 @@ def run_all_ganomaly():
                 "--dataset",
                 dataset,
                 "--epochs",
-                "20",  # you can tune this
+                "150",  # More stable convergence
                 "--lr",
-                "0.0001",  # you can tune this too
+                "0.0001",  # 1e-4
+                "--lambda-adv",
+                "0.05",  # Lower weight for adversarial term
+                "--lambda-latent",
+                "15",  # Stronger latent consistency
             ],
             check=True,
         )
 
-        # 3. Evaluate GANomaly
+        # 3️⃣ Evaluate GANomaly
         subprocess.run(
-            ["python", "-m", "src.models.eval_ganomaly", "--dataset", dataset],
+            [
+                "python",
+                "-m",
+                "src.models.eval_ganomaly",
+                "--dataset",
+                dataset,
+            ],
             check=True,
         )
 
