@@ -22,27 +22,17 @@ def load_reports(folder):
     return pd.DataFrame(rows)
 
 
-def load_adversarial(folder="artifacts/adversarial"):
-    rows = []
-    for file in Path(folder).glob("*_eval.csv"):
-        dataset = file.stem.replace("_eval", "")
-        df = pd.read_csv(file)
-        df["dataset"] = dataset
-        df["model"] = "cgan"
-        rows.append(df)
-    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
-
-
 def aggregate_reports():
     out_file = "artifacts/reports/aggregate_metrics.csv"
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
 
     ae_gan_df = load_reports("artifacts/reports")
-    adv_df = load_adversarial("artifacts/adversarial")
 
-    combined = pd.concat([ae_gan_df, adv_df], ignore_index=True)
+    # ONLY KEEP METRICS → REMOVE ADVERSARIAL SAMPLE EVALUATIONS
+    combined = ae_gan_df
+
     combined.to_csv(out_file, index=False)
-    print(f"✅ Aggregated report saved → {out_file}")
+    print(f"✅ Clean aggregated report saved → {out_file}")
     print(combined.head())
 
 

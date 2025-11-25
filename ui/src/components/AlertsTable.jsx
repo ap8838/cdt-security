@@ -1,3 +1,4 @@
+// ui/src/components/AlertsTable.jsx
 import React from "react";
 
 export default function AlertsTable({ rows = [] }) {
@@ -17,14 +18,21 @@ export default function AlertsTable({ rows = [] }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="border-b">
+            <tr
+              key={`${r.id}-${r.asset_id}-${r.timestamp}`}   // 🔥 FIXED KEY
+              className="border-b"
+            >
               <td className="p-2">{r.id}</td>
               <td className="p-2">{r.asset_id}</td>
               <td className="p-2">{r.timestamp}</td>
               <td className="p-2">{Number(r.score).toFixed(3)}</td>
               <td className="p-2">{r.model}</td>
               <td className="p-2">{Number(r.threshold).toFixed(4)}</td>
-              <td className={`p-2 font-semibold ${r.is_anomaly ? "text-red-600" : "text-green-600"}`}>
+              <td
+                className={`p-2 font-semibold ${
+                  r.is_anomaly ? "text-red-600" : "text-green-600"
+                }`}
+              >
                 {r.is_anomaly ? "YES" : "no"}
               </td>
             </tr>

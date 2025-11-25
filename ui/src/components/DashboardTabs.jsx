@@ -2,8 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import { fetchAlerts, fetchAssets, fetchDatasets } from "../api";
 import AlertsTable from "./AlertsTable";
 import ScoreChart from "./ScoreChart";
-import AssetSelector from "./AssetSelector";
-import ManualTestForm from "./ManualTestForm";
 import BlockchainTab from "./BlockchainTab";
 import SimulationTab from "./SimulationTab";
 import MetricsTab from "./MetricsTab";
@@ -81,13 +79,10 @@ export default function DashboardTabs() {
                     </option>
                   ))}
                 </select>
-
-                <AssetSelector assets={assets} selected={asset} onChange={setAsset} />
                 <div className="text-sm text-gray-600">
                   Showing <strong>{filtered.length}</strong> alerts
                 </div>
               </div>
-              <ManualTestForm assets={assets} dataset={dataset} />
             </div>
 
             <ScoreChart data={filtered} />
