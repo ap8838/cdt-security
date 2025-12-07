@@ -18,14 +18,21 @@ export default function DashboardTabs() {
   useEffect(() => {
     loadDatasets();
     loadAssets();
-    loadAlerts();
+    loadAlerts(); // Initial load
 
     pollingRef.current = setInterval(loadAlerts, 2000);
     return () => clearInterval(pollingRef.current);
   }, []);
 
+  // 🔥 FIX PART 2: Re-fetch alerts whenever dataset changes
+  useEffect(() => {
+    loadAlerts();
+  }, [dataset]);
+
+  // 🔥 FIX PART 2: Modified loadAlerts to use the selected dataset
   function loadAlerts() {
-    fetchAlerts(200, 0)
+    // Pass dataset to fetchAlerts
+    fetchAlerts(200, 0, dataset)
       .then((rows) => {
         setAlerts(rows);
         if (!asset && rows.length) {
@@ -43,7 +50,10 @@ export default function DashboardTabs() {
     fetchDatasets().then(setDatasets).catch(console.error);
   }
 
-  const filtered = asset ? alerts.filter((a) => a.asset_id === asset) : alerts;
+  // 🔥 FIX PART 4: Fix the alert filtering (already correct, but kept for clarity)
+  const filtered = asset
+    ? alerts.filter((a) => a.asset_id === asset)
+    : alerts;
 
   return (
     <div className="container mx-auto p-6">
@@ -67,9 +77,13 @@ export default function DashboardTabs() {
           <div className="md:col-span-2 bg-white p-4 rounded shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
+                {/* 🔥 FIX PART 3: Reset asset when dataset changes */}
                 <select
                   value={dataset || ""}
-                  onChange={(e) => setDataset(e.target.value || "")}
+                  onChange={(e) => {
+                    setDataset(e.target.value);
+                    setAsset(null); // reset asset
+                  }}
                   className="border px-2 py-1 rounded"
                 >
                   <option value="">-- select dataset --</option>
