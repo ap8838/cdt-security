@@ -70,7 +70,7 @@ python -m src.stream.streamer --input data/processed/iot_fridge_test.parquet --r
 
 With API integration (alerts stored in DB):
 
-python -m src.stream.streamer --input data/processed/iot_fridge_test.parquet --rate 2 --speed 1.0 --endpoint http://127.0.0.1:8000/score
+python -m src.stream.streamer --input data/processed/iot_garage_test.parquet --rate 2 --speed 1.0 --endpoint http://127.0.0.1:8000/score
 
 Inspect database 
 
@@ -111,8 +111,8 @@ python src/blockchain/deploy_contract.py
 
 You’ll see output like:
 
-🎉 Contract deployed at: 0x63783aA31b8A226F5E87aEDB5e60395560Ae122f
-💾 Wrote contract artifact to: artifacts/blockchain/AlertRegistry.json
+ Contract deployed at: 0x63783aA31b8A226F5E87aEDB5e60395560Ae122f
+ Wrote contract artifact to: artifacts/blockchain/AlertRegistry.json
 
 9.  Start the API
 uvicorn src.api.main:app --reload --port 8000
@@ -165,13 +165,6 @@ python -m src.adversarial.train_cgan \
   --epochs 60 --batch-size 256 --z-dim 64
 
 
-✅ Expected Output:
-
-✅ Loaded encoders from artifacts/preproc/iot_fridge_encoders.pkl
-⚠️ Used fallback LabelEncoder for temp_condition
-Epoch 1/60  D_loss=0.86  G_loss=1.30
-...
-Saved cGAN to artifacts/adversarial/iot_fridge_cgan.pt
 
 13. Generate synthetic samples
 python -m src.adversarial.generate_samples \

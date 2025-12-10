@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { fetchAlerts, fetchAssets, fetchDatasets } from "../api";
+import { fetchAlerts, fetchDatasets } from "../api";
 import AlertsTable from "./AlertsTable";
 import ScoreChart from "./ScoreChart";
 import BlockchainTab from "./BlockchainTab";
@@ -9,51 +9,52 @@ import MetricsTab from "./MetricsTab";
 export default function DashboardTabs() {
   const [tab, setTab] = useState("overview");
   const [alerts, setAlerts] = useState([]);
-  const [assets, setAssets] = useState([]);
-  const [asset, setAsset] = useState(null);
   const [datasets, setDatasets] = useState([]);
   const [dataset, setDataset] = useState("");
   const pollingRef = useRef(null);
 
   useEffect(() => {
     loadDatasets();
-    loadAssets();
-    loadAlerts(); // Initial load
-
-    pollingRef.current = setInterval(loadAlerts, 2000);
+    loadAlerts();
+    pollingRef.current = setInterval(() => loadAlerts(), 2000);
     return () => clearInterval(pollingRef.current);
   }, []);
 
-  // 🔥 FIX PART 2: Re-fetch alerts whenever dataset changes
+  // when dataset changes, reload alerts immediately
   useEffect(() => {
     loadAlerts();
   }, [dataset]);
-
-  // 🔥 FIX PART 2: Modified loadAlerts to use the selected dataset
-  function loadAlerts() {
-    // Pass dataset to fetchAlerts
-    fetchAlerts(200, 0, dataset)
-      .then((rows) => {
-        setAlerts(rows);
-        if (!asset && rows.length) {
-          setAsset(rows[0].asset_id);
-        }
-      })
-      .catch(console.error);
-  }
-
-  function loadAssets() {
-    fetchAssets().then(setAssets).catch(console.error);
-  }
 
   function loadDatasets() {
     fetchDatasets().then(setDatasets).catch(console.error);
   }
 
-  // 🔥 FIX PART 4: Fix the alert filtering (already correct, but kept for clarity)
-  const filtered = asset
-    ? alerts.filter((a) => a.asset_id === asset)
-    : alerts;
+  function loadAlerts() {
+    // request backend alerts filtered by dataset (backend handles empty dataset as "all")
+    fetchAlerts(200, 0, dataset || "")
+      .then((rows = []) => {
+        setAlerts(rows);
+      })
+      .catch(console.error);
+  }
+
+  // Build the filtered data for chart — FILTER ONLY BY DATASET (as requested)
+  let filtered = alerts;
+  if (dataset) {
+    // robust matching: accept equality, startsWith, or contains
+    const ds = String(dataset);
+    filtered = alerts.filter((a) => {
+      const id = String(a.asset_id || "");
+      if (id === ds) return true;
+      if (id.startsWith(ds)) return true;
+      if (id.includes(ds)) return true;
+      // try replacing dashes/underscores and check
+      const normalized = id.replace(/[-_]/g, "");
+      const normDs = ds.replace(/[-_]/g, "");
+      if (normalized.startsWith(normDs) || normalized.includes(normDs)) return true;
+      return false;
+    });
+  }
 
   return (
     <div className="container mx-auto p-6">
@@ -77,24 +78,21 @@ export default function DashboardTabs() {
           <div className="md:col-span-2 bg-white p-4 rounded shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                {/* 🔥 FIX PART 3: Reset asset when dataset changes */}
                 <select
                   value={dataset || ""}
-                  onChange={(e) => {
-                    setDataset(e.target.value);
-                    setAsset(null); // reset asset
-                  }}
+                  onChange={(e) => setDataset(e.target.value || "")}
                   className="border px-2 py-1 rounded"
                 >
-                  <option value="">-- select dataset --</option>
+                  <option value="">-- select dataset (show all) --</option>
                   {datasets.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
                   ))}
                 </select>
+
                 <div className="text-sm text-gray-600">
-                  Showing <strong>{filtered.length}</strong> alerts
+                  Showing <strong>{filtered.length}</strong> alerts (graph)
                 </div>
               </div>
             </div>
@@ -104,6 +102,7 @@ export default function DashboardTabs() {
 
           <div className="bg-white p-4 rounded shadow">
             <h2 className="font-semibold mb-2">Latest Alerts</h2>
+            {/* keep table showing the latest alerts returned (dataset-scoped by our fetch) */}
             <AlertsTable rows={alerts.slice(0, 50)} />
           </div>
         </div>
@@ -113,10 +112,8 @@ export default function DashboardTabs() {
 
       {tab === "simulation" && (
         <SimulationTab
-          assets={assets}
           onGenerated={() => {
             loadAlerts();
-            loadAssets();
           }}
         />
       )}
