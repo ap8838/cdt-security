@@ -28,8 +28,18 @@ export const postScore = (payload, dataset = null) => {
 export const fetchBlockRecord = (tx_hash) =>
   axios.get(`${API_BASE}/blockchain/verify?tx_hash=${encodeURIComponent(tx_hash)}`).then(r => r.data);
 
-export const generateSamples = (payload) =>
-  axios.post(`${API_BASE}/adversarial/generate`, payload).then(r => r.data);
+// fetch datasets that have cGAN model files
+export const fetchAdversarialModels = () =>
+  axios.get(`${API_BASE}/adversarial/models`).then(r => r.data.models);
+
+// generateSamples: call backend adversarial/generate with query params backend expects
+export const generateSamples = ({ dataset = "iot_fridge", n = 50, post = true }) =>
+  axios
+    .post(
+      `${API_BASE}/adversarial/generate?dataset=${encodeURIComponent(dataset)}&n=${encodeURIComponent(n)}&post_to_api=${encodeURIComponent(post)}`,
+      {}
+    )
+    .then((r) => r.data);
 
 export const fetchMetrics = () =>
   axios.get(`${API_BASE}/metrics`).then(r => r.data);

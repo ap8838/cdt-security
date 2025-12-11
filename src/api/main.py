@@ -398,5 +398,22 @@ def verify_blockchain_record(tx_hash: str):
     return result
 
 
+@app.get("/adversarial/models")
+def list_adversarial_models():
+    """
+    Return list of datasets that have saved cGAN generators:
+    artifacts/adversarial/{dataset}_cgan.pt
+    """
+    pattern = "artifacts/adversarial/*_cgan.pt"
+    files = glob(pattern)
+    models = []
+    for f in files:
+        name = Path(f).stem  # e.g. 'iot_fridge_cgan'
+        if name.endswith("_cgan"):
+            ds = name[: -len("_cgan")]
+            models.append(ds)
+    return {"models": sorted(models)}
+
+
 def verify_hash_route(tx: str):
     return verify_blockchain_record(tx_hash=tx)

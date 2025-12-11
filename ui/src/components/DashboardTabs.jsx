@@ -112,12 +112,16 @@ export default function DashboardTabs() {
 
       {tab === "simulation" && (
         <SimulationTab
-          onGenerated={() => {
+          onGenerated={(generatedDataset) => {
+            if (generatedDataset) {
+              // switch dashboard filter to show this dataset
+              setDataset(generatedDataset);
+            }
+            // reload alerts (will fetch with dataset filter)
             loadAlerts();
           }}
         />
       )}
-
       {tab === "metrics" && <MetricsTab />}
     </div>
   );

@@ -1,62 +1,123 @@
-import React, { useState } from "react";
-import { generateSamples } from "../api";
+import React, { useEffect, useState } from "react";
+import { generateSamples, fetchAdversarialModels } from "../api";
 
-// The component now accepts 'datasets' instead of 'assets'
-export default function SimulationTab({ datasets = [], onGenerated = () => {} }) {
-  const [n, setN] = useState(100);
-  // Renamed state from 'asset' to 'dataset' and updated default value logic
-  const [dataset, setDataset] = useState(
-    datasets && datasets.length ? datasets[0] : "synthetic"
-  );
-  const [post, setPost] = useState(false);
-  const [status, setStatus] = useState(null);
+export default function SimulationTab({ onGenerated = () => {} }) {
+  const [n, setN] = useState(50);
+  const [dataset, setDataset] = useState("");
+  const [postToApi, setPostToApi] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState("");
+  const [models, setModels] = useState([]);
 
-  // Update default dataset if datasets change
-  React.useEffect(() => {
-    // Check if the current dataset is no longer in the list (or is the default 'synthetic')
-    if (datasets && datasets.length && !datasets.includes(dataset) && dataset !== "synthetic") {
-      setDataset(datasets[0] || "synthetic");
-    } else if (!datasets.length && dataset !== "synthetic") {
-      setDataset("synthetic");
+  useEffect(() => {
+    // load available cGAN models
+    fetchAdversarialModels()
+      .then((m) => {
+        setModels(m || []);
+        if ((m || []).length && !dataset) setDataset(m[0]);
+      })
+      .catch((err) => {
+        console.error("Failed to load adversarial models:", err);
+        setMessage("Failed to load adversarial models. Check backend.");
+      });
+  }, []);
+
+  async function handleGenerate() {
+    if (!dataset) {
+      setMessage("⚠️ Select a target dataset (cGAN model).");
+      return;
     }
-  }, [datasets]); // Dependency array updated to use 'datasets'
+    if (!Number.isInteger(n) || n <= 0) {
+      setMessage("⚠️ Enter a positive integer for Count.");
+      return;
+    }
 
-  const runGen = async () => {
-    setStatus("starting");
+    setRunning(true);
+    setMessage("Generating synthetic samples...");
+
     try {
-      // Use 'dataset' in the payload
-      const payload = { n, dataset, post };
-      const res = await generateSamples(payload);
-      setStatus(`started: ${res.started ? "ok" : "failed"}`);
-      onGenerated();
+      const resp = await generateSamples({ dataset, n, post: postToApi });
+      if (resp && resp.error) {
+        setMessage("Error: " + resp.error);
+      } else {
+        setMessage(
+          `Done. Generated=${resp.generated ?? n} Posted=${resp.posted ?? 0} Anomalies=${resp.anomalies_detected ?? 0}`
+        );
+        // Notify parent and provide the dataset that was generated for
+        // so the dashboard can switch the dataset filter to show results.
+        onGenerated(resp.dataset || dataset);
+      }
     } catch (err) {
-      setStatus("error: " + String(err));
+      console.error("generateSamples error:", err);
+      const errText = err?.response?.data || err?.message || String(err);
+      setMessage("Request failed: " + JSON.stringify(errText));
+    } finally {
+      setRunning(false);
     }
-  };
+  }
 
   return (
     <div className="bg-white p-4 rounded shadow">
-      <h2 className="font-semibold mb-2">Simulation — generate synthetic attacks (cGAN)</h2>
+      <h2 className="font-semibold mb-4">cGAN Simulation — Synthetic Attack Generator</h2>
 
-      <div className="flex items-center gap-2 mb-3">
-        {/* Replaced the select to use 'dataset' state and 'datasets' prop */}
-        <select value={dataset} onChange={(e) => setDataset(e.target.value)} className="border px-2 py-1 rounded">
-          <option value="synthetic">synthetic</option>
-          {datasets.map((d) => <option key={d}>{d}</option>)}
-        </select>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <div>
+          <label className="block text-sm font-medium mb-1">Target GAN (dataset)</label>
+          <select
+            value={dataset}
+            onChange={(e) => setDataset(e.target.value)}
+            className="w-full border px-2 py-1 rounded"
+          >
+            <option value="">-- select target GAN --</option>
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <input type="number" className="border px-2 py-1 rounded w-28" value={n} onChange={(e) => setN(Number(e.target.value))} />
+        <div>
+          <label className="block text-sm font-medium mb-1">Count</label>
+          <input
+            type="number"
+            value={n}
+            min={1}
+            onChange={(e) => setN(Number(e.target.value))}
+            className="w-full border px-2 py-1 rounded"
+          />
+        </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={post} onChange={(e) => setPost(e.target.checked)} />
-          Post to API
-        </label>
-
-        <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={runGen}>Generate</button>
+        <div>
+          <label className="block text-sm font-medium mb-1">Post to API</label>
+          <div className="flex items-center gap-2">
+            <input
+              id="post-sim"
+              type="checkbox"
+              checked={postToApi}
+              onChange={(e) => setPostToApi(e.target.checked)}
+            />
+            <label htmlFor="post-sim" className="text-sm">Send generated events to /score</label>
+          </div>
+        </div>
       </div>
 
-      {status && <div className="text-sm text-gray-700">Status: {status}</div>}
-      <div className="text-xs text-gray-500 mt-2">The server will run generation in background. If you enabled Post, generated events are sent to the /score endpoint.</div>
+      <div className="mt-4">
+        <button
+          onClick={handleGenerate}
+          disabled={running}
+          className={`px-3 py-2 rounded ${running ? "bg-gray-300" : "bg-blue-600 text-white"}`}
+        >
+          {running ? "Generating..." : "Generate Samples"}
+        </button>
+      </div>
+
+      <div className="mt-3 text-sm text-gray-700">{message}</div>
+
+      <div className="mt-4 text-xs text-gray-500">
+        Each option corresponds to a trained cGAN file in <code>artifacts/adversarial/{`{dataset}_cgan.pt`}</code>.
+        Selecting one will generate samples from that specific cGAN and (optionally) POST them to the score endpoint for that dataset.
+      </div>
     </div>
   );
 }
