@@ -4,7 +4,7 @@ import sqlite3
 from contextlib import asynccontextmanager
 from glob import glob
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, Query
@@ -33,7 +33,7 @@ ASSET_STATE_DB = ALERTS_DB
 
 
 def _ensure_alerts_table(conn: sqlite3.Connection):
-    """Ensures the alerts table exists."""
+    """Ensure alerts table exists (add tx_hash and synthetic columns if missing)."""
     cur = conn.cursor()
     cur.execute(
         """
@@ -46,11 +46,23 @@ def _ensure_alerts_table(conn: sqlite3.Connection):
             threshold REAL,
             is_anomaly INTEGER,
             raw TEXT,
-            tx_hash TEXT
+            tx_hash TEXT,
+            synthetic INTEGER DEFAULT 0
         )
         """
     )
     conn.commit()
+
+    # For existing DBs: ensure column exists (safe to run repeatedly).
+    cur.execute("PRAGMA table_info(alerts)")
+    cols = [r[1] for r in cur.fetchall()]
+    if "synthetic" not in cols:
+        try:
+            cur.execute("ALTER TABLE alerts ADD COLUMN synthetic INTEGER DEFAULT 0")
+            conn.commit()
+        except sqlite3.Error:
+            # if ALTER fails for any reason, ignore
+            pass
 
 
 @asynccontextmanager
@@ -85,8 +97,8 @@ if ui_dist.exists():
 try:
     bc_client = BlockchainClient()
     print("✅ Blockchain client initialized")
-except Exception as e:
-    print("⚠️ Blockchain not initialized:", e)
+except Exception as bc_err:  # Use specific name for outer scope error
+    print("⚠️ Blockchain not initialized:", bc_err)
     bc_client = None
 
 
@@ -98,25 +110,39 @@ def log_alert(result: dict, raw_event: dict):
     if not result.get("is_anomaly"):
         return
 
-    tx_hash = None
-    conn = None
+    # detect synthetic marker inside posted event
+    synthetic = False
+    try:
+        fe = raw_event.get("features", {})
+        if isinstance(fe, dict) and fe.get("__synthetic") in (True, "true", "1", 1):
+            synthetic = True
+    except Exception:
+        synthetic = False
 
-    # Write to blockchain
+    tx_hash = None
+    # --- Try blockchain write ---
     if bc_client:
         try:
-            tx_hash = bc_client.register_alert(result, result.get("asset_id"))
+            # FIX: Use 'raw_event' (the input data) for hashing, not 'result' (the score)
+            tx_hash = bc_client.register_alert(
+                raw_event,  # ✅ CHANGED: Use raw_event for hashing
+                result.get("asset_id"),
+                synthetic=synthetic,
+            )
             print(f"✅ Alert written to blockchain: {tx_hash}")
-        except Exception as chain_err:
+        except Exception as chain_err:  # Use specific name
             print("⚠️ Blockchain write failed:", chain_err)
 
+    # --- Always log to DB (include synthetic column) ---
+    conn = None
     try:
         conn = sqlite3.connect(str(ALERTS_DB))
         _ensure_alerts_table(conn)
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO alerts (asset_id, timestamp, score, model, threshold, is_anomaly, raw, tx_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alerts (asset_id, timestamp, score, model, threshold, is_anomaly, raw, tx_hash, synthetic)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result.get("asset_id"),
@@ -127,11 +153,14 @@ def log_alert(result: dict, raw_event: dict):
                 int(bool(result.get("is_anomaly"))),
                 json.dumps(raw_event, default=str),
                 tx_hash or "",
+                int(bool(synthetic)),
             ),
         )
         conn.commit()
-    except Exception as err:
-        print("⚠️ DB logging error:", err)
+    except sqlite3.Error as db_err:  # Use specific exception type
+        print("⚠️ DB logging error:", db_err)
+    except Exception as general_err:  # Use specific name
+        print("⚠️ Unexpected logging error:", general_err)
     finally:
         if conn is not None:
             conn.close()
@@ -190,7 +219,9 @@ def get_alerts(
     conn = sqlite3.connect(str(ALERTS_DB))
     try:
         base_q = "SELECT * FROM alerts"
-        params = []
+        params: List[Any] = (
+            []
+        )  # Explicitly type params as List[Any] to handle mixed types
         where = []
 
         if dataset:
@@ -212,12 +243,12 @@ def get_alerts(
         # Clean NaN
         df = df.where(pd.notnull(df), None)
 
-        # 🔥 ABSOLUTE FIX: Remove duplicate records entirely
+        # Remove duplicate records entirely
         df = df.drop_duplicates(
             subset=["id", "asset_id", "timestamp", "score", "model"], keep="last"
         )
 
-        # 🔥 Sort after dedupe
+        # Sort after dedupe
         df = df.sort_values("id", ascending=False)
 
         return df.to_dict(orient="records")
@@ -239,8 +270,8 @@ def get_metrics():
             df = pd.read_csv(csv_path)
             df = df.where(pd.notnull(df), None)
             return {"rows": df.to_dict(orient="records")}
-        except Exception as e:
-            return {"error": f"Failed to parse CSV: {e}"}
+        except Exception as file_err:
+            return {"error": f"Failed to parse CSV: {file_err}"}
 
     # Fallback to JSON
     if json_path.exists():
@@ -254,8 +285,8 @@ def get_metrics():
 
             cleaned = [{k: fix_nan(v) for k, v in row.items()} for row in data]
             return {"rows": cleaned}
-        except Exception as e:
-            return {"error": f"Failed to parse JSON: {e}"}
+        except Exception as file_err:
+            return {"error": f"Failed to parse JSON: {file_err}"}
 
     return {"error": "No metrics file found"}
 
@@ -323,10 +354,14 @@ def generate_adversarial_samples(
     # Build events
     events = []
     for i in range(n):
+        # The key change for this function is ensuring the synthetic marker is included
+        features_dict = {cols[j]: float(fake[i][j]) for j in range(len(cols))}
+        features_dict["__synthetic"] = True  # <-- Add synthetic marker here
+
         event = {
             "asset_id": dataset,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "features": {cols[j]: float(fake[i][j]) for j in range(len(cols))},
+            "features": features_dict,
         }
         events.append(event)
 
@@ -348,8 +383,10 @@ def generate_adversarial_samples(
                         anomalies += 1
                 else:
                     print("⚠️ POST failed:", resp.status_code)
-            except Exception as e:
-                print("⚠️ POST error:", e)
+            except (
+                requests.exceptions.RequestException
+            ) as req_err:  # Specific exception
+                print("⚠️ POST error:", req_err)
 
     return {
         "dataset": dataset,
@@ -361,41 +398,67 @@ def generate_adversarial_samples(
 
 
 @app.get("/blockchain/verify")
-def verify_blockchain_record(tx_hash: str):
+def verify_blockchain_record(tx_hash: str) -> Dict[str, Any]:  # Explicit return type
     """
-    Return both onchain lookup and DB metadata for the tx_hash (if present).
+    Checks DB for the record associated with tx_hash, recomputes the canonical hash,
+    and looks up the canonical hash on the blockchain.
+    Returns a simplified verdict for the UI.
     """
-    result = {}
 
-    # on-chain look-up
     if not bc_client:
-        result["onchain_error"] = "Blockchain not connected"
-    else:
-        try:
-            onchain = bc_client.lookup_alert(tx_hash)
-            result["onchain"] = onchain
-        except Exception as e:
-            result["onchain_error"] = str(e)
+        return {"error": "Blockchain disabled", "verdict": "Disabled"}
 
-    # DB record (best-effort)
+    # -------------------------
+    # 1. Lookup DB entry by tx_hash (Crucial step)
+    # -------------------------
     conn = sqlite3.connect(str(ALERTS_DB))
     try:
         df = pd.read_sql_query(
-            "SELECT * FROM alerts WHERE tx_hash = ? LIMIT 1", conn, params=(tx_hash,)
+            "SELECT * FROM alerts WHERE tx_hash = ? LIMIT 1", conn, params=[tx_hash]
         )
-        if not df.empty:
-            row = df.iloc[0].to_dict()
-            try:
-                row["raw_parsed"] = json.loads(row.get("raw", "{}"))
-            except Exception:
-                row["raw_parsed"] = row.get("raw")
-            result["db"] = row
-        else:
-            result["db"] = None
     finally:
         conn.close()
 
-    return result
+    if df.empty:
+        return {
+            "verdict": "DB Record Not Found",
+            "message": f"The transaction hash '{tx_hash}' does not match any entry in the local database.",
+            "tx_hash": tx_hash,
+        }
+
+    # Found DB entry
+    row = df.iloc[0].to_dict()
+    db_record = row
+    raw_content = row.get("raw", "{}")
+    recomputed_hash = bc_client.compute_alert_hash(raw_content)
+
+    # Ensure the hash is 0x-prefixed for lookup
+    if not recomputed_hash.startswith("0x"):
+        recomputed_hash = "0x" + recomputed_hash
+
+    # -------------------------
+    # 2. Lookup using the CORRECT canonical alert-hash
+    # -------------------------
+    final_lookup = bc_client.lookup_alert(recomputed_hash)
+
+    # Check if the lookup was successful (i.e., asset_id is not the default empty string)
+    if final_lookup and final_lookup.get("asset_id"):
+        return {
+            "verdict": "Verified",
+            "db_record": db_record,
+            "onchain_record": final_lookup,
+            "verified_hash": recomputed_hash,
+            "message": "Record successfully verified on-chain using the canonical alert hash.",
+        }
+    else:
+        # If the canonical hash lookup failed, the transaction failed or the hash calculation is still wrong.
+        return {
+            "verdict": "Verification Failed",
+            "db_record": db_record,
+            "verified_hash": recomputed_hash,
+            "onchain_record": final_lookup,
+            "message": "The canonical hash was not found on the blockchain. The transaction may have reverted or the alert hash computation failed.",
+        }
 
 
 @app.get("/adversarial/models")
@@ -415,5 +478,6 @@ def list_adversarial_models():
     return {"models": sorted(models)}
 
 
+# Keeping the last function for completeness, though it seems unused/incomplete
 def verify_hash_route(tx: str):
     return verify_blockchain_record(tx_hash=tx)

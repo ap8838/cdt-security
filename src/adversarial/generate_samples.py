@@ -118,11 +118,17 @@ def generate(parsed_args):
 
     if parsed_args.post:
         for _, row in df_out.iterrows():
+            # --- replace previous payload creation with this ---
+            features_dict = {c: float(row[c]) for c in cols}
+            # mark synthetic
+            features_dict["__synthetic"] = True
+
             payload = {
                 "asset_id": row["asset_id"],
                 "timestamp": row["timestamp"],
-                "features": {c: float(row[c]) for c in cols},
+                "features": features_dict,
             }
+            # then use payload for POST
             try:
                 resp = requests.post(parsed_args.post, json=payload, timeout=5.0)
                 print("POST", resp.status_code)

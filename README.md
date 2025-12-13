@@ -70,7 +70,7 @@ python -m src.stream.streamer --input data/processed/iot_fridge_test.parquet --r
 
 With API integration (alerts stored in DB):
 
-python -m src.stream.streamer --input data/processed/iot_garage_test.parquet --rate 2 --speed 1.0 --endpoint http://127.0.0.1:8000/score
+python -m src.stream.streamer --input data/processed/iot_fridge_test.parquet --rate 2 --speed 1.0 --endpoint http://127.0.0.1:8000/score
 
 Inspect database 
 

@@ -11,6 +11,7 @@ export default function DashboardTabs() {
   const [alerts, setAlerts] = useState([]);
   const [datasets, setDatasets] = useState([]);
   const [dataset, setDataset] = useState("");
+  const [showSynthetic, setShowSynthetic] = useState(false); // default: show only real
   const pollingRef = useRef(null);
 
   useEffect(() => {
@@ -20,7 +21,6 @@ export default function DashboardTabs() {
     return () => clearInterval(pollingRef.current);
   }, []);
 
-  // when dataset changes, reload alerts immediately
   useEffect(() => {
     loadAlerts();
   }, [dataset]);
@@ -30,7 +30,6 @@ export default function DashboardTabs() {
   }
 
   function loadAlerts() {
-    // request backend alerts filtered by dataset (backend handles empty dataset as "all")
     fetchAlerts(200, 0, dataset || "")
       .then((rows = []) => {
         setAlerts(rows);
@@ -38,23 +37,29 @@ export default function DashboardTabs() {
       .catch(console.error);
   }
 
-  // Build the filtered data for chart — FILTER ONLY BY DATASET (as requested)
+  // Filtered data for chart (dataset filter + synthetic toggle)
   let filtered = alerts;
   if (dataset) {
-    // robust matching: accept equality, startsWith, or contains
     const ds = String(dataset);
     filtered = alerts.filter((a) => {
       const id = String(a.asset_id || "");
       if (id === ds) return true;
       if (id.startsWith(ds)) return true;
       if (id.includes(ds)) return true;
-      // try replacing dashes/underscores and check
       const normalized = id.replace(/[-_]/g, "");
       const normDs = ds.replace(/[-_]/g, "");
       if (normalized.startsWith(normDs) || normalized.includes(normDs)) return true;
       return false;
     });
   }
+
+  // Apply synthetic filter
+  if (!showSynthetic) {
+    filtered = filtered.filter((a) => !a.synthetic);
+  }
+
+  // Prepare table rows: latest 50 alerts, respecting synthetic toggle
+  const tableRows = showSynthetic ? alerts.slice(0, 50) : alerts.filter(a => !a.synthetic).slice(0,50);
 
   return (
     <div className="container mx-auto p-6">
@@ -95,15 +100,26 @@ export default function DashboardTabs() {
                   Showing <strong>{filtered.length}</strong> alerts (graph)
                 </div>
               </div>
+
+              {/* NEW: Synthetic Toggle */}
+              <div className="flex items-center gap-3">
+                <label className="text-sm">Show synthetic</label>
+                <input
+                  type="checkbox"
+                  checked={showSynthetic}
+                  onChange={(e) => setShowSynthetic(e.target.checked)}
+                />
+              </div>
             </div>
 
-            <ScoreChart data={filtered} />
+            {/* Pass synthetic toggle to ScoreChart */}
+            <ScoreChart data={filtered} showSynthetic={showSynthetic} />
           </div>
 
           <div className="bg-white p-4 rounded shadow">
             <h2 className="font-semibold mb-2">Latest Alerts</h2>
-            {/* keep table showing the latest alerts returned (dataset-scoped by our fetch) */}
-            <AlertsTable rows={alerts.slice(0, 50)} />
+            {/* Pass filtered rows to AlertsTable */}
+            <AlertsTable rows={tableRows} />
           </div>
         </div>
       )}
@@ -114,10 +130,8 @@ export default function DashboardTabs() {
         <SimulationTab
           onGenerated={(generatedDataset) => {
             if (generatedDataset) {
-              // switch dashboard filter to show this dataset
               setDataset(generatedDataset);
             }
-            // reload alerts (will fetch with dataset filter)
             loadAlerts();
           }}
         />
