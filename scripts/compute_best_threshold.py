@@ -1,4 +1,3 @@
-# scripts/compute_best_threshold.py
 import argparse
 import json
 import os
@@ -7,7 +6,7 @@ import sys
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import roc_curve
+from sklearn.metrics import precision_recall_curve, roc_curve
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 os.chdir(ROOT)
@@ -83,11 +82,26 @@ def load_ganomaly_scores(dataset):
     return scores, y
 
 
-def choose_threshold(scores, y):
-    # default: maximize tpr - fpr
+def choose_threshold_roc(scores, y):
+    # Best for AE: maximize tpr - fpr
     fpr, tpr, thr = roc_curve(y, scores)
     ix = np.argmax(tpr - fpr)
     return float(thr[ix]), float(tpr[ix]), float(fpr[ix])
+
+
+def choose_threshold_f1(scores, y):
+    # Best for GANomaly: maximize F1-score
+    prec, rec, thr = precision_recall_curve(y, scores)
+    f1 = 2 * (prec * rec) / (prec + rec + 1e-8)
+    ix = np.argmax(f1)
+    # thr has length len(prec)-1, so we clip the index
+    best_thr = float(thr[min(ix, len(thr) - 1)])
+
+    # Calculate stats for the summary printout
+    preds = (scores >= best_thr).astype(int)
+    tpr = np.mean(preds[y == 1]) if any(y == 1) else 0.0
+    fpr = np.mean(preds[y == 0])
+    return best_thr, float(tpr), float(fpr)
 
 
 def main():
@@ -100,26 +114,29 @@ def main():
     os.makedirs("artifacts/models", exist_ok=True)
 
     for ds in datasets:
-        print(f"\n=== Processing {ds} ===")
+        print(f"\n=== Processing {ds} ({args.model}) ===")
         try:
             if args.model == "ae":
                 scores, y = load_ae_scores(ds)
+                best, tpr, fpr = choose_threshold_roc(scores, y)
+                method = "ROC"
             else:
                 scores, y = load_ganomaly_scores(ds)
+                best, tpr, fpr = choose_threshold_f1(scores, y)
+                method = "Max-F1"
         except Exception as e:
             print("⚠️  Skipping", ds, "— error loading model/data:", e)
             continue
 
         if len(np.unique(y)) < 2:
-            print("⚠️  No positive class in test set for", ds, "- skipping ROC")
+            print("⚠️  No positive class in test set for", ds, "- skipping")
             continue
 
-        best, tpr, fpr = choose_threshold(scores, y)
         fname = f"artifacts/models/{ds}_{args.model}_threshold.json"
         with open(fname, "w") as fh:
             json.dump({"threshold": best}, fh)
         print(
-            f"✅ Best threshold {best:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> saved to {fname}"
+            f"✅ [{method}] Threshold {best:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}"
         )
 
     print("\n✅ All done — thresholds saved to artifacts/models/*.json")
