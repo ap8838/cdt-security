@@ -1,5 +1,4 @@
 import sys
-
 from src.blockchain.client import BlockchainClient
 
 

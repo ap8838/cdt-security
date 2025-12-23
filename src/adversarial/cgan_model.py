@@ -43,5 +43,5 @@ class Discriminator(nn.Module):
         # x: (B, in_dim), cond: (B, cond_dim)
         x_in = torch.cat([x, cond], dim=1)
         out = self.net(x_in)
-        # ✅ Keep shape as (B, 1) instead of squeezing
+        # Keeps shape as (B, 1) instead of squeezing
         return out

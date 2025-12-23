@@ -1,13 +1,10 @@
 import argparse
 import json
 import os
-
 import pandas as pd
 import torch
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
-
-# Assuming GANomaly is defined in src.models.ganomaly
 from src.models.ganomaly import GANomaly
 from src.utils.seed import set_seed
 
@@ -170,7 +167,7 @@ def train_ganomaly(
     with open(log_path, "w") as f:
         json.dump(train_log, f, indent=2)
 
-    print(f"✅ [{dataset}] GANomaly model saved, threshold={threshold:.6f}")
+    print(f" [{dataset}] GANomaly model saved, threshold={threshold:.6f}")
 
 
 if __name__ == "__main__":

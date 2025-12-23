@@ -4,7 +4,6 @@ import logging
 import os
 import traceback
 from typing import Dict
-
 import joblib
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
@@ -16,7 +15,6 @@ def make_onehot(**kwargs):
     try:
         return OneHotEncoder(**kwargs)
     except TypeError:
-        # replace sparse_output -> sparse for older sklearn
         if "sparse_output" in kwargs:
             v = kwargs.pop("sparse_output")
             kwargs["sparse"] = v
@@ -83,7 +81,7 @@ def preprocess_dataset(
         # 3. Add dataset identifier
         df["asset_id"] = dataset_name
 
-        # ✅ 3.5 Add "asset" column (used for cGAN conditioning)
+        # 3.5 Add "asset" column (used for cGAN conditioning)
         df["asset"] = dataset_name
 
         # 4. Require label
@@ -174,14 +172,14 @@ def preprocess_dataset(
 
         df = df.fillna(0)
 
-        # ✅ 9. Split train/test (this time train includes anomalies)
-        train = df.copy()  # includes both normal and anomaly samples
+        # 9. Split train/test (this time train includes anomalies)
+        train = df.copy()
         test = df.copy()
 
         logging.info("Train class distribution:\n%s", train[label_col].value_counts())
         logging.info("Test class distribution:\n%s", test[label_col].value_counts())
 
-        # ✅ 10. Save to parquet
+        # 10. Save to parquet
         cols_order = ["asset_id", "asset", "timestamp"] + [
             c for c in df.columns if c not in ("asset_id", "asset", "timestamp")
         ]
@@ -193,7 +191,7 @@ def preprocess_dataset(
         train.to_parquet(train_path, index=False)
         test.to_parquet(test_path, index=False)
 
-        # ✅ Save preprocessing artifacts
+        # Save preprocessing artifacts
         joblib.dump(scaler, os.path.join(artifacts_dir, f"{dataset_name}_scaler.pkl"))
         joblib.dump(
             encoders, os.path.join(artifacts_dir, f"{dataset_name}_encoders.pkl")
@@ -210,7 +208,7 @@ def preprocess_dataset(
         ) as fh:
             json.dump(feature_list, fh, indent=2)
 
-        logging.info("✅ %s processed", dataset_name)
+        logging.info("%s processed", dataset_name)
         logging.info("Train: %s, Test: %s", train.shape, test.shape)
 
         return {
@@ -222,7 +220,7 @@ def preprocess_dataset(
         }
 
     except Exception as e:
-        logging.error("⚠️ Failed processing %s: %s", dataset_name, e)
+        logging.error("Failed processing %s: %s", dataset_name, e)
         logging.debug(traceback.format_exc())
         raise
 

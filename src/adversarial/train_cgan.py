@@ -1,11 +1,9 @@
 import argparse
 from pathlib import Path
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
 from src.adversarial.cgan_model import Discriminator, Generator
 from src.adversarial.dataset import TabularCGANDataset
 
@@ -16,7 +14,7 @@ def train(parsed_args):
 
     dataset_name = parsed_args.dataset
 
-    # ✅ Use provided paths if passed, otherwise infer automatically
+    #  Use provided paths if passed, otherwise infer automatically
     parquet_path = parsed_args.parquet or f"data/processed/{dataset_name}_train.parquet"
     features_path = (
         parsed_args.features or f"artifacts/preproc/{dataset_name}_features.json"
@@ -27,8 +25,8 @@ def train(parsed_args):
     )
     out_path = parsed_args.out or f"artifacts/adversarial/{dataset_name}_cgan.pt"
 
-    print(f"\n🚀 Training cGAN for dataset: {dataset_name}")
-    print(f"📦 Data: {parquet_path}")
+    print(f"\n Training cGAN for dataset: {dataset_name}")
+    print(f" Data: {parquet_path}")
 
     dataset = TabularCGANDataset(
         parquet_path=parquet_path,
@@ -95,7 +93,7 @@ def train(parsed_args):
                 f"D={total_d_loss/len(loader):.4f} G={total_g_loss/len(loader):.4f}"
             )
 
-    # ✅ Save model
+    #  Save model
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -108,7 +106,7 @@ def train(parsed_args):
         out_path,
     )
 
-    print(f"✅ Saved cGAN for {dataset_name} -> {out_path}")
+    print(f" Saved cGAN for {dataset_name} -> {out_path}")
 
 
 if __name__ == "__main__":

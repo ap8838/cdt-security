@@ -1,8 +1,6 @@
-# scripts/diagnose_ganomaly.py
 import json
 import os
 import sys
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch

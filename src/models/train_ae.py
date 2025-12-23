@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -60,7 +59,7 @@ def train_autoencoder(dataset: str, features_file=None, epochs=20, lr=1e-3, seed
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    logs = []  # 👈 Collect per-epoch losses
+    logs = []  # Collect per-epoch losses
 
     # 6. Training loop
     for epoch in range(epochs):
@@ -114,8 +113,8 @@ def train_autoencoder(dataset: str, features_file=None, epochs=20, lr=1e-3, seed
     with open(log_path, "w") as f:
         json.dump(logs, f, indent=2)
 
-    print(f"✅ [{dataset}] Model saved to {model_path}, threshold={threshold:.6f}")
-    print(f"📑 Training log saved to {log_path}")
+    print(f" [{dataset}] Model saved to {model_path}, threshold={threshold:.6f}")
+    print(f" Training log saved to {log_path}")
 
 
 if __name__ == "__main__":

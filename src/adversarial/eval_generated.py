@@ -1,9 +1,7 @@
 import argparse
 import glob
 import os
-
 import pandas as pd
-
 from src.service.infer_service import InferenceService
 
 
@@ -25,7 +23,7 @@ def eval_generated_one(parquet, dataset, model, out):
     out_df = pd.DataFrame(rows)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     out_df.to_csv(out, index=False)
-    print(f"✅ Wrote evaluation for {dataset} → {out}")
+    print(f" Wrote evaluation for {dataset} → {out}")
 
 
 def main():

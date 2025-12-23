@@ -1,11 +1,8 @@
-# src/service/infer_service.py
 import json
 from pathlib import Path
-
 import joblib
 import pandas as pd
 import torch
-
 from src.models.autoencoder import Autoencoder
 from src.models.ganomaly import GANomaly
 
@@ -102,11 +99,9 @@ class InferenceService:
                 df[f"{col}_freq"] = df[col].astype(str).map(encoder).fillna(0)
                 df = df.drop(columns=[col])
             else:
-                # unknown encoder type: try to call transform and put back single column
                 try:
                     df[col] = encoder.transform(df[[col]])
                 except Exception:
-                    # leave as-is
                     pass
         return df
 
@@ -130,7 +125,6 @@ class InferenceService:
                     transformed = self.scaler.transform(df[numeric_cols].astype(float))
                     df[numeric_cols] = transformed
                 except Exception:
-                    # give up and leave as-is
                     pass
         return df
 

@@ -7,12 +7,10 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import requests
 import torch
-
 from src.adversarial.cgan_model import Generator
 
 
@@ -39,7 +37,7 @@ def generate(parsed_args):
     with open(parsed_args.features, "r") as f:
         features = json.load(f)
 
-    # Build columns the same way TabularCGANDataset expects:
+    # Building columns the same way TabularCGANDataset expects:
     # exclude metadata: asset_id, asset, timestamp, label
     cols = [
         c
@@ -50,21 +48,18 @@ def generate(parsed_args):
     expected_dim = int(info["D_in"])
     if len(cols) != expected_dim:
         print(
-            f"⚠️ generate_samples: mismatch between features.json cols ({len(cols)}) "
+            f" generate_samples: mismatch between features.json cols ({len(cols)}) "
             f"and model.D_in ({expected_dim}). Attempting to reconcile."
         )
         if len(cols) > expected_dim:
-            # Trim extra column names (preserve order)
-            print(f"⚠️ Trimming {len(cols) - expected_dim} columns from features list.")
+            print(f" Trimming {len(cols) - expected_dim} columns from features list.")
             cols = cols[:expected_dim]
         else:
-            # Pad with synthetic column names so DataFrame creation succeeds
             miss = expected_dim - len(cols)
             pad_names = [f"gen_feature_pad_{i}" for i in range(miss)]
-            print(f"⚠️ Appending {miss} placeholder feature names: {pad_names}")
+            print(f" Appending {miss} placeholder feature names: {pad_names}")
             cols = cols + pad_names
 
-    # simple condition strategy: use asset list from dataset parquet if present
     if parsed_args.cond_asset:
         df_cond = pd.read_parquet(parsed_args.cond_asset)
         assets = sorted(df_cond["asset_id"].fillna("").unique().tolist())
@@ -75,7 +70,7 @@ def generate(parsed_args):
         cond = np.zeros((parsed_args.n, cond_dim), dtype=np.float32)
         cond[:, asset_idx] = 1.0
     else:
-        # Use generator's cond_dim from the checkpoint
+        # Using generator's cond_dim from the checkpoint
         cond = np.zeros((parsed_args.n, info["cond_dim"]), dtype=np.float32)
 
     z = torch.randn(parsed_args.n, info["z_dim"], device=device)
@@ -87,21 +82,18 @@ def generate(parsed_args):
     # Debug print
     print(f"Generated raw fake shape: {fake.shape}  (expected columns = {len(cols)})")
 
-    # map back from [-1,1] -> [0,1] if necessary (heuristic)
     if fake.min() >= -1.0 and fake.max() <= 1.0:
         fake = (fake + 1.0) / 2.0
 
-    # Ensure shape matches columns length before constructing DataFrame
     if fake.shape[1] != len(cols):
-        # last-resort safety: try trim/pad on the *generated* array to match cols
         if fake.shape[1] > len(cols):
             print(
-                f"⚠️ Trimming generated values from {fake.shape[1]} -> {len(cols)} to match column names."
+                f" Trimming generated values from {fake.shape[1]} -> {len(cols)} to match column names."
             )
             fake = fake[:, : len(cols)]
         elif fake.shape[1] < len(cols):
             print(
-                f"⚠️ Padding generated values from {fake.shape[1]} -> {len(cols)} with zeros."
+                f" Padding generated values from {fake.shape[1]} -> {len(cols)} with zeros."
             )
             pad = np.zeros((fake.shape[0], len(cols) - fake.shape[1]), dtype=fake.dtype)
             fake = np.hstack([fake, pad])
@@ -118,7 +110,6 @@ def generate(parsed_args):
 
     if parsed_args.post:
         for _, row in df_out.iterrows():
-            # --- replace previous payload creation with this ---
             features_dict = {c: float(row[c]) for c in cols}
             # mark synthetic
             features_dict["__synthetic"] = True
@@ -128,7 +119,6 @@ def generate(parsed_args):
                 "timestamp": row["timestamp"],
                 "features": features_dict,
             }
-            # then use payload for POST
             try:
                 resp = requests.post(parsed_args.post, json=payload, timeout=5.0)
                 print("POST", resp.status_code)

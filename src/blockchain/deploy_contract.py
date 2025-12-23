@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
 from solcx import compile_standard, install_solc
 from web3 import Web3
@@ -18,7 +17,7 @@ CHAIN_ID = int(os.getenv("CHAIN_ID", "1337"))
 
 
 def compile_contract():
-    print("⛏️  Installing solc and compiling contract...")
+    print("Installing solc and compiling contract...")
     install_solc("0.8.17")
     source = CONTRACT_PATH.read_text()
     compiled = compile_standard(
@@ -64,11 +63,11 @@ def deploy(contract_abi, contract_bytecode):
     )
     signed = acct.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    print("⛳ Sent deployment tx:", tx_hash.hex())
+    print("Sent deployment tx:", tx_hash.hex())
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     address = receipt["contractAddress"]
-    print("🎉 Contract deployed at:", address)
+    print("Contract deployed at:", address)
 
     # Save artifact
     artifact = {
@@ -76,7 +75,7 @@ def deploy(contract_abi, contract_bytecode):
         "abi": contract_abi,
     }
     (OUT_DIR / "AlertRegistry.json").write_text(json.dumps(artifact, indent=2))
-    print("💾 Wrote contract artifact to:", OUT_DIR / "AlertRegistry.json")
+    print("Wrote contract artifact to:", OUT_DIR / "AlertRegistry.json")
     return address
 
 

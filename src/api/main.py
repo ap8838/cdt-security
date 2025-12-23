@@ -1,17 +1,14 @@
-# src/api/main.py
 import json
 import sqlite3
 from contextlib import asynccontextmanager
 from glob import glob
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
 import pandas as pd
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
 from src.blockchain.client import BlockchainClient
 from src.service.infer_service import InferenceService
 
@@ -53,7 +50,7 @@ def _ensure_alerts_table(conn: sqlite3.Connection):
     )
     conn.commit()
 
-    # For existing DBs: ensure column exists (safe to run repeatedly).
+    # For existing DBs: ensuring column exists (safe to run repeatedly).
     cur.execute("PRAGMA table_info(alerts)")
     cols = [r[1] for r in cur.fetchall()]
     if "synthetic" not in cols:
@@ -123,17 +120,15 @@ def log_alert(result: dict, raw_event: dict):
     # --- Try blockchain write ---
     if bc_client:
         try:
-            # FIX: Use 'raw_event' (the input data) for hashing, not 'result' (the score)
             tx_hash = bc_client.register_alert(
-                raw_event,  # ✅ CHANGED: Use raw_event for hashing
+                raw_event,
                 result.get("asset_id"),
                 synthetic=synthetic,
             )
-            print(f"✅ Alert written to blockchain: {tx_hash}")
+            print(f" Alert written to blockchain: {tx_hash}")
         except Exception as chain_err:  # Use specific name
-            print("⚠️ Blockchain write failed:", chain_err)
+            print(" Blockchain write failed:", chain_err)
 
-    # --- Always log to DB (include synthetic column) ---
     conn = None
     try:
         conn = sqlite3.connect(str(ALERTS_DB))
@@ -157,10 +152,10 @@ def log_alert(result: dict, raw_event: dict):
             ),
         )
         conn.commit()
-    except sqlite3.Error as db_err:  # Use specific exception type
-        print("⚠️ DB logging error:", db_err)
-    except Exception as general_err:  # Use specific name
-        print("⚠️ Unexpected logging error:", general_err)
+    except sqlite3.Error as db_err:
+        print(" DB logging error:", db_err)
+    except Exception as general_err:
+        print(" Unexpected logging error:", general_err)
     finally:
         if conn is not None:
             conn.close()
@@ -221,7 +216,7 @@ def get_alerts(
         base_q = "SELECT * FROM alerts"
         params: List[Any] = (
             []
-        )  # Explicitly type params as List[Any] to handle mixed types
+        )
         where = []
 
         if dataset:
@@ -409,7 +404,7 @@ def verify_blockchain_record(tx_hash: str) -> Dict[str, Any]:  # Explicit return
         return {"error": "Blockchain disabled", "verdict": "Disabled"}
 
     # -------------------------
-    # 1. Lookup DB entry by tx_hash (Crucial step)
+    # 1. Lookup DB entry by tx_hash
     # -------------------------
     conn = sqlite3.connect(str(ALERTS_DB))
     try:
@@ -477,7 +472,3 @@ def list_adversarial_models():
             models.append(ds)
     return {"models": sorted(models)}
 
-
-# Keeping the last function for completeness, though it seems unused/incomplete
-def verify_hash_route(tx: str):
-    return verify_blockchain_record(tx_hash=tx)

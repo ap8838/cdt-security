@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 import sys
-
 import numpy as np
 import pandas as pd
 import torch
@@ -14,9 +13,7 @@ sys.path.append(ROOT)
 
 
 def get_datasets():
-    # find *_test.parquet names
     import glob
-
     ds = [
         os.path.basename(p).replace("_test.parquet", "")
         for p in glob.glob("data/processed/*_test.parquet")
@@ -24,10 +21,7 @@ def get_datasets():
     return sorted(ds)
 
 
-def load_ae_scores(dataset):
-    # compute AE reconstruction MSE per sample
-    from src.models.autoencoder import Autoencoder
-
+def load_common_data(dataset):
     features = json.load(open(f"artifacts/preproc/{dataset}_features.json"))
     cols = [c for c in features["all"] if c not in ("asset_id", "timestamp", "label")]
     df = pd.read_parquet(f"data/processed/{dataset}_test.parquet")
@@ -39,6 +33,16 @@ def load_ae_scores(dataset):
         .values
     )
     y = df["label"].astype(int).values
+    return x, y, features
+
+
+def load_ae_scores(dataset):
+    # compute AE reconstruction MSE per sample
+    from src.models.autoencoder import Autoencoder
+
+    # Using the helper to avoid duplication
+    x, y, features = load_common_data(dataset)
+
     device = "cpu"
     model = Autoencoder(input_dim=x.shape[1]).to(device)
     model.load_state_dict(
@@ -56,17 +60,9 @@ def load_ganomaly_scores(dataset):
     # compute GANomaly score used in eval_ganomaly (recon_err + latent_err)
     from src.models.ganomaly import GANomaly
 
-    features = json.load(open(f"artifacts/preproc/{dataset}_features.json"))
-    cols = [c for c in features["all"] if c not in ("asset_id", "timestamp", "label")]
-    df = pd.read_parquet(f"data/processed/{dataset}_test.parquet")
-    x = (
-        df[cols]
-        .apply(pd.to_numeric, errors="coerce")
-        .fillna(0)
-        .astype("float32")
-        .values
-    )
-    y = df["label"].astype(int).values
+    # Using the helper to avoid duplication
+    x, y, features = load_common_data(dataset)
+
     device = "cpu"
     model = GANomaly(input_dim=x.shape[1]).to(device)
     model.load_state_dict(
@@ -94,8 +90,8 @@ def choose_threshold_f1(scores, y):
     prec, rec, thr = precision_recall_curve(y, scores)
     f1 = 2 * (prec * rec) / (prec + rec + 1e-8)
     ix = np.argmax(f1)
-    # thr has length len(prec)-1, so we clip the index
-    best_thr = float(thr[min(ix, len(thr) - 1)])
+    safe_index = min(int(ix), int(len(thr) - 1))
+    best_thr = float(thr[safe_index])
 
     # Calculate stats for the summary printout
     preds = (scores >= best_thr).astype(int)
@@ -133,10 +129,13 @@ def main():
             continue
 
         fname = f"artifacts/models/{ds}_{args.model}_threshold.json"
+        threshold_value = float(best)
+
         with open(fname, "w") as fh:
-            json.dump({"threshold": best}, fh)
+            json.dump({"threshold": threshold_value}, fh)
+
         print(
-            f"✅ [{method}] Threshold {best:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}"
+            f"✅ [{method}] Threshold {threshold_value:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}"
         )
 
     print("\n✅ All done — thresholds saved to artifacts/models/*.json")

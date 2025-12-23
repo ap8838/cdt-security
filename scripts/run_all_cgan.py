@@ -1,6 +1,7 @@
 import glob
 import os
 import subprocess
+import sys  # <--- Added this for environment locking
 from pathlib import Path
 
 
@@ -28,7 +29,7 @@ def run_cgan_training(dataset: str):
 
     try:
         command = [
-            "python",
+            sys.executable, # <--- Replaced "python" with sys.executable
             "-m",
             "src.adversarial.train_cgan",
             "--dataset",

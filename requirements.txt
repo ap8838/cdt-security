@@ -1,24 +1,44 @@
+# Core
 numpy>=1.24
 pandas>=2.0
 pyarrow
-scikit-learn
-joblib
 pyyaml
-fastapi
-uvicorn[standard]
-requests
-SQLAlchemy
-alembic
-pydantic
-loguru
-matplotlib
-pytest
+joblib
+tqdm
+psutil
+
+# ML / AI
+scikit-learn
 torch
 torchvision
+matplotlib
+
+# API
+fastapi
+uvicorn[standard]
+httpx
+python-multipart
+
+# Database
+SQLAlchemy
+alembic
+
+# Blockchain
+web3
+py-solc-x
+
+# Config / Logging
+python-dotenv
+loguru
+
+# Validation
+pydantic>=2.0,<3.0
+
+# Testing
+pytest
+
+# Dev tools
 black
 isort
 ruff
 pre-commit
-web3
-python-dotenv
-

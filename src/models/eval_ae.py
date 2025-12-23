@@ -1,15 +1,11 @@
-# Z:\cdt-security\src\models\eval_ae.py
 import argparse
 import glob
 import json
 import os
-
 import pandas as pd
 import torch
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
-
 from src.utils.seed import set_seed
-
 from .autoencoder import Autoencoder
 
 
@@ -67,7 +63,7 @@ def evaluate_autoencoder(dataset, features_file=None, seed=42):
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
-    print(f"✅ [{dataset}] AE evaluation complete:", report)
+    print(f" [{dataset}] AE evaluation complete:", report)
 
 
 def main():

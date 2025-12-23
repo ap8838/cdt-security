@@ -9,7 +9,6 @@ Dataset loader for Conditional GAN.
 
 import json
 from typing import Optional
-
 import numpy as np
 import pandas as pd
 import torch
@@ -33,7 +32,7 @@ class TabularCGANDataset(Dataset):
         with open(features_file, "r") as f:
             features = json.load(f)
 
-        # ✅ Exclude all metadata columns from feature matrix
+        # Exclude all metadata columns from feature matrix
         protected = {"asset_id", "asset", "timestamp", "label"}
         all_cols = [c for c in features["all"] if c not in protected]
 
@@ -48,7 +47,7 @@ class TabularCGANDataset(Dataset):
 
         if len(self.df) == 0:
             print(
-                f"⚠️ TabularCGANDataset: no rows after applying train_on='{train_on}'. Falling back to full dataset."
+                f" TabularCGANDataset: no rows after applying train_on='{train_on}'. Falling back to full dataset."
             )
             self.df = original_df.copy()
 
@@ -56,7 +55,7 @@ class TabularCGANDataset(Dataset):
         missing = [c for c in all_cols if c not in self.df.columns]
         if missing:
             print(
-                f"⚠️ TabularCGANDataset: missing expected feature columns: {missing}. Filling with zeros."
+                f" TabularCGANDataset: missing expected feature columns: {missing}. Filling with zeros."
             )
             for c in missing:
                 self.df[c] = 0.0
@@ -66,7 +65,7 @@ class TabularCGANDataset(Dataset):
         X_df = X_df.select_dtypes(include=["number"])
         if X_df.empty:
             raise ValueError(
-                "❌ TabularCGANDataset: No numeric columns found after filtering!"
+                " TabularCGANDataset: No numeric columns found after filtering!"
             )
 
         # Convert to float32 numpy
@@ -74,7 +73,7 @@ class TabularCGANDataset(Dataset):
         self.X = X_df.fillna(0).to_numpy(dtype=np.float32)
 
         # -------------------------------
-        # ✅ Build conditional vector
+        #  Build conditional vector
         # -------------------------------
         cond_col = None
         if condition and condition in self.df.columns:
@@ -88,7 +87,7 @@ class TabularCGANDataset(Dataset):
             assets = sorted(self.df[cond_col].fillna("").astype(str).unique().tolist())
             if len(assets) == 0:
                 print(
-                    "⚠️ TabularCGANDataset: condition column present but empty, using dummy condition."
+                    " TabularCGANDataset: condition column present but empty, using dummy condition."
                 )
                 self.conds = np.zeros((len(self.X), 1), dtype=np.float32)
             else:
@@ -101,7 +100,7 @@ class TabularCGANDataset(Dataset):
                 self.conds = np.vstack(conds).astype(np.float32)
         else:
             print(
-                "⚠️ TabularCGANDataset: no condition column found — using dummy condition vector."
+                " TabularCGANDataset: no condition column found — using dummy condition vector."
             )
             self.conds = np.zeros((len(self.X), 1), dtype=np.float32)
 

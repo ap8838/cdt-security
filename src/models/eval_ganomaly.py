@@ -2,18 +2,16 @@ import argparse
 import glob
 import json
 import os
-
 import pandas as pd
 import torch
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
-
 from src.models.ganomaly import GANomaly
 
 
 def evaluate_ganomaly(dataset, features_file=None):
     test_file = f"data/processed/{dataset}_test.parquet"
     if not os.path.exists(test_file):
-        print(f"⚠️ Skipping {dataset}: no test parquet.")
+        print(f" Skipping {dataset}: no test parquet.")
         return
 
     model_path = f"artifacts/models/{dataset}_ganomaly.pt"
@@ -65,7 +63,7 @@ def evaluate_ganomaly(dataset, features_file=None):
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(metrics, f, indent=2)
-    print(f"✅ [{dataset}] GANomaly evaluation complete: {metrics}")
+    print(f" [{dataset}] GANomaly evaluation complete: {metrics}")
 
 
 def main():

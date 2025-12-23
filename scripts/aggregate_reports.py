@@ -1,8 +1,6 @@
-# scripts/aggregate_reports.py
 import json
 import os
 from pathlib import Path
-
 import pandas as pd
 
 
@@ -28,7 +26,6 @@ def aggregate_reports():
 
     ae_gan_df = load_reports("artifacts/reports")
 
-    # ONLY KEEP METRICS → REMOVE ADVERSARIAL SAMPLE EVALUATIONS
     combined = ae_gan_df
 
     combined.to_csv(out_file, index=False)

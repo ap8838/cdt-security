@@ -12,7 +12,8 @@ source .venv/bin/activate     # Linux/macOS
 
 # install dependencies
 pip install -r requirements.txt
-
+also install ui dependencies from ui/package.json
+clean npm installation etc
 
 ###1. Preprocess dataset (Phase 1)
 
@@ -24,14 +25,20 @@ python -m src.data.preprocess
 
 Autoencoder (AE):
 
-python -m src.models.run_all
-# or
-python scripts/run_all.py
+python scripts/run_models.py ae --dataset iot_fridge
+or
+python scripts/run_models.py ae
 
 
 GANomaly:
 
-python scripts/run_all_ganomaly.py
+python scripts/run_models.py ganomaly --dataset iot_fridge
+or
+python scripts/run_models.py ganomaly
+
+setup thresholds for both models with :
+python scripts/compute_best_threshold.py --model ae
+python scripts/compute_best_threshold.py --model ganomaly
 
 3. Local inference test
 
@@ -92,8 +99,19 @@ python scripts/query_db.py --asset-state --limit 10
 
 Run Ganache locally:
 
-npx ganache
+Create .env: 
 
+# Backend blockchain connection
+RPC_URL=http://127.0.0.1:8545
+CONTRACT_ADDRESS=<Your Contact Address>
+PRIVATE_KEY=<Your Private Key>
+CHAIN_ID=1337
+
+# Frontend API URL
+VITE_API_BASE=http://localhost:8000
+
+To run : 
+npx ganache
 
 It will display accounts and private keys.
 Copy one of the private keys and set it in your .env file:
@@ -156,43 +174,21 @@ On-chain record: {
 (The default contract stores hashes only; extended metadata storage can be added later.)
 
 12. Train the cGAN
-python -m src.adversarial.train_cgan \
-  --parquet data/processed/iot_fridge_test.parquet \
-  --features artifacts/preproc/iot_fridge_features.json \
-  --scaler artifacts/preproc/iot_fridge_scaler.pkl \
-  --encoders artifacts/preproc/iot_fridge_encoders.pkl \
-  --out artifacts/adversarial/iot_fridge_cgan.pt \
-  --epochs 60 --batch-size 256 --z-dim 64
+python scripts/run_all_cgan.py
 
 
 
 13. Generate synthetic samples
-python -m src.adversarial.generate_samples \
-  --model artifacts/adversarial/iot_fridge_cgan.pt \
-  --features artifacts/preproc/iot_fridge_features.json \
-  --n 100 \
-  --out artifacts/adversarial/generated.parquet
-
+python scripts/generate_all_cgan_samples.py
 
 ✅ Output:
 
 Wrote artifacts/adversarial/generated.parquet
 
 
-To send generated samples directly to API:
-
-python -m src.adversarial.generate_samples \
-  --model artifacts/adversarial/iot_fridge_cgan.pt \
-  --features artifacts/preproc/iot_fridge_features.json \
-  --n 10 \
-  --post http://127.0.0.1:8000/score
 
 14. Evaluate generated samples
-python -m src.adversarial.eval_generated \
-  --parquet artifacts/adversarial/generated.parquet \
-  --dataset iot_fridge \
-  --model ganomaly \
-  --out artifacts/adversarial/eval.csv
+python scripts/eval_all_generated.py
 
 
 ✅ Output:

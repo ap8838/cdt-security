@@ -4,7 +4,6 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-
 import pandas as pd
 import requests
 from requests.exceptions import RequestException
@@ -90,13 +89,13 @@ def run_streamer(
                     if r.headers.get("content-type") == "application/json"
                     else {"status": "ok (no-json)"}
                 )
-                print("🔎 Scored:", resp)
+                print(" Scored:", resp)
             except RequestException as e:
-                print(f"⚠️ API call failed: {e}")
+                print(f" API call failed: {e}")
 
         count += 1
         if max_events and count >= max_events:
-            print(f"🛑 Stopped after {count} events (max-events reached)")
+            print(f" Stopped after {count} events (max-events reached)")
             break
 
         time.sleep(1.0 / (rate * speed))
@@ -131,7 +130,7 @@ if __name__ == "__main__":
         test_files = glob.glob("data/processed/*_test.parquet")
         for fpath in test_files:
             dataset = Path(fpath).stem.replace("_test", "")
-            print(f"🚀 Streaming dataset: {dataset}")
+            print(f" Streaming dataset: {dataset}")
             run_streamer(
                 fpath,
                 db_path=f"artifacts/stream/{dataset}.db",

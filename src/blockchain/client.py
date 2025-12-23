@@ -1,11 +1,8 @@
-# src/blockchain/client.py
-
 import json
 import os
 import time
 from pathlib import Path
 from typing import Any, Dict
-
 from dotenv import load_dotenv
 from web3 import Web3
 from web3 import exceptions as w3_exceptions
@@ -75,10 +72,7 @@ class BlockchainClient:
         dataset: str = None,
     ) -> str:
         asset_tag = f"{dataset}:{asset_id}" if dataset else asset_id
-
         alert_hash_hex = self.compute_alert_hash(alert_obj)
-
-        # 🔒 Web3 typing bug – runtime value is valid
         alert_hash_bytes = self.w3.to_bytes(
             hexstr=alert_hash_hex  # type: ignore[arg-type]
         )
@@ -97,10 +91,7 @@ class BlockchainClient:
                 "chainId": CHAIN_ID,
             }
         )
-
         signed = self.account.sign_transaction(txn)
-
-        # 🔒 Web3 typing bug – return type is HexBytes at runtime
         tx_hash = self.w3.eth.send_raw_transaction(
             signed.raw_transaction  # type: ignore[arg-type]
         )

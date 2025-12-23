@@ -4,8 +4,8 @@ import {
 } from "recharts";
 
 export default function ScoreChart({ data = [], showSynthetic = false }) {
-  // prepare two series: real and synthetic
-  // Use slice(-200) to get the latest 200 items, map them, and reverse to show oldest on left
+  //  two series: real and synthetic
+  // Using slice(-200) to get the latest 200 items, map them, and reverse to show oldest on left
   const real = data.filter(d => !d.synthetic).slice(-200).map(d => ({
     id: d.id,
     ts: d.timestamp,
