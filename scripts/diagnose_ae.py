@@ -41,7 +41,7 @@ if not (
     and os.path.exists(test_path)
     and os.path.exists(model_path)
 ):
-    print(f"❌ Missing files for {dataset}. Check preprocessing or training.")
+    print(f" Missing files for {dataset}. Check preprocessing or training.")
     sys.exit(1)
 
 features = json.load(open(features_path))

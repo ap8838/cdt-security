@@ -10,7 +10,7 @@ def run_cgan_training(dataset: str):
     Executes the src.adversarial.train_cgan script for a specific dataset
     using subprocess to simulate a command-line call.
     """
-    print(f"\n🚀 Training cGAN for dataset: {dataset}")
+    print(f"\n Training cGAN for dataset: {dataset}")
 
     # Define paths based on the dataset name
     in_parquet = Path(f"data/processed/{dataset}_train.parquet")
@@ -23,7 +23,7 @@ def run_cgan_training(dataset: str):
     required_files = [in_parquet, features_json, scaler_pkl, encoders_pkl]
     if not all(f.exists() for f in required_files):
         print(
-            f"⚠️ Skipping {dataset}: missing one or more required preprocessing files."
+            f" Skipping {dataset}: missing one or more required preprocessing files."
         )
         return
 
@@ -55,12 +55,12 @@ def run_cgan_training(dataset: str):
         ]
 
         subprocess.run(command, check=True)
-        print(f"✅ [{dataset}] cGAN model training complete.")
+        print(f" [{dataset}] cGAN model training complete.")
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ [{dataset}] cGAN training failed! Error: {e}")
+        print(f" [{dataset}] cGAN training failed! Error: {e}")
     except Exception as e:
-        print(f"❌ Unexpected error while training {dataset}: {e}")
+        print(f" Unexpected error while training {dataset}: {e}")
 
 
 def run_all_cgan():
@@ -68,19 +68,19 @@ def run_all_cgan():
     parquet_files = glob.glob("data/processed/*_train.parquet")
     if not parquet_files:
         print(
-            "❌ No *_train.parquet files found in data/processed/. Please preprocess datasets first."
+            " No *_train.parquet files found in data/processed/. Please preprocess datasets first."
         )
         return
 
     datasets = sorted(
         set(os.path.basename(p).replace("_train.parquet", "") for p in parquet_files)
     )
-    print(f"\n🧩 Found {len(datasets)} datasets to train: {datasets}")
+    print(f"\n Found {len(datasets)} datasets to train: {datasets}")
 
     for dataset in datasets:
         run_cgan_training(dataset)
 
-    print("\n🎉 All cGAN training processes completed successfully.")
+    print("\n All cGAN training processes completed successfully.")
 
 
 if __name__ == "__main__":

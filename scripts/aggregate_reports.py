@@ -29,7 +29,7 @@ def aggregate_reports():
     combined = ae_gan_df
 
     combined.to_csv(out_file, index=False)
-    print(f"✅ Clean aggregated report saved → {out_file}")
+    print(f" Clean aggregated report saved → {out_file}")
     print(combined.head())
 
 

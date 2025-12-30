@@ -10,8 +10,13 @@ python -m venv .venv
 source .venv/bin/activate     # Linux/macOS
 .venv\Scripts\activate        # Windows PowerShell
 
-# install dependencies
+# install python dependencies
 pip install -r requirements.txt
+
+# install UI dependencies
+cd ui
+npm install
+cd ..
 also install ui dependencies from ui/package.json
 clean npm installation etc
 
@@ -32,13 +37,19 @@ python scripts/run_models.py ae
 
 GANomaly:
 
-python scripts/run_models.py ganomaly --dataset iot_fridge
-or
-python scripts/run_models.py ganomaly
+# Train Autoencoder (Point-wise)
+python scripts/run_models.py ae
+
+# Train GANomaly (Temporal Windowing - Window Size 5)
+python scripts/run_models.py ganomaly --window 5
 
 setup thresholds for both models with :
-python scripts/compute_best_threshold.py --model ae
-python scripts/compute_best_threshold.py --model ganomaly
+ python -m scripts.compute_best_threshold --model ae
+ python -m scripts.compute_best_threshold --model ganomaly
+
+# 2.5 Evaluate Models
+# Generate the F1, Precision, and ROC-AUC reports
+python scripts/run_evals.py ganomaly --window 5
 
 3. Local inference test
 
