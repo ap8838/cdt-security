@@ -4,6 +4,7 @@ import logging
 import os
 import traceback
 from typing import Dict
+
 import joblib
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
@@ -35,14 +36,6 @@ def preprocess_dataset(
     output_dir: str = "data/processed",
     artifacts_dir: str = "artifacts/preproc",
 ) -> Dict[str, str]:
-    """
-    Preprocess a single CSV file and produce:
-      - data/processed/{dataset}_train.parquet (includes anomalies)
-      - data/processed/{dataset}_test.parquet
-      - artifacts/preproc/{dataset}_scaler.pkl
-      - artifacts/preproc/{dataset}_encoders.pkl
-      - artifacts/preproc/{dataset}_features.json
-    """
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(artifacts_dir, exist_ok=True)
 
@@ -65,31 +58,21 @@ def preprocess_dataset(
                 + " "
                 + df["time"].astype(str).str.strip()
             )
-            try:
-                df["timestamp"] = pd.to_datetime(
-                    combined, format="%d-%b-%y %H:%M:%S", errors="coerce"
-                )
-                if df["timestamp"].isna().any():
-                    df["timestamp"] = pd.to_datetime(combined, errors="coerce")
-            except (ValueError, TypeError):
-                df["timestamp"] = pd.to_datetime(combined, errors="coerce")
+            df["timestamp"] = pd.to_datetime(combined, errors="coerce")
             df.drop(columns=["date", "time"], inplace=True, errors="ignore")
         elif "ts" in df.columns:
             df["timestamp"] = pd.to_datetime(df["ts"], unit="s", errors="coerce")
             df.drop(columns=["ts"], inplace=True, errors="ignore")
 
-        # 3. Add dataset identifier
-        df["asset_id"] = dataset_name
+        # --- MANDATORY FIX: Chronological Sort ---
+        df = df.sort_values("timestamp").reset_index(drop=True)
 
-        # 3.5 Add "asset" column (used for cGAN conditioning)
+        # 3. Add identifiers
+        df["asset_id"] = dataset_name
         df["asset"] = dataset_name
 
-        # 4. Require label
+        # 4. Determine numeric vs categorical
         label_col = "label"
-        if label_col not in df.columns:
-            raise ValueError(f"Expected a '{label_col}' column in {csv_path}")
-
-        # 5. Determine numeric vs categorical robustly
         protected = {"asset_id", "asset", "timestamp", label_col}
         numeric_cols = []
         cat_candidates = []
@@ -99,97 +82,99 @@ def preprocess_dataset(
             ser = df[c]
             if pd.api.types.is_numeric_dtype(ser):
                 numeric_cols.append(c)
-            elif pd.api.types.is_bool_dtype(ser):
-                cat_candidates.append(c)
             elif _is_numeric_like(ser, 0.9):
                 df[c] = pd.to_numeric(ser, errors="coerce")
                 numeric_cols.append(c)
             else:
                 cat_candidates.append(c)
 
-        logging.info("Numeric cols: %s", numeric_cols)
-        logging.info("Categorical candidates: %s", cat_candidates)
+        # --- MANDATORY FIX: Chronological Split (80/20) ---
+        split_idx = int(len(df) * 0.8)
+        train_df = df.iloc[:split_idx].copy()
+        test_df = df.iloc[split_idx:].copy()
 
-        # 6. Fit scaler on normal rows only (label=0)
-        normal_df = df[df[label_col] == 0].copy()
-        if numeric_cols:
+        # 5. Fit scaler on normal rows within the TRAINING set only
+        normal_train = train_df[train_df[label_col] == 0].copy()
+        if numeric_cols and not normal_train.empty:
             scaler = MinMaxScaler()
-            scaler.fit(normal_df[numeric_cols])
-            df[numeric_cols] = scaler.transform(df[numeric_cols])
+            scaler.fit(normal_train[numeric_cols])
+            # Apply to both
+            train_df[numeric_cols] = scaler.transform(train_df[numeric_cols].fillna(0))
+            test_df[numeric_cols] = scaler.transform(test_df[numeric_cols].fillna(0))
         else:
             scaler = {"feature_names": []}
 
-        # 7. Encode categoricals
-        encoded_parts = []
+        # 6. Encode categoricals (Fit on train-normal, transform both)
+        encoded_parts_train = []
+        encoded_parts_test = []
         encoders = {}
         encoded_cols = []
 
         for col in cat_candidates:
-            if col not in df.columns:
-                continue
-            train_values = normal_df[col].fillna("").astype(str).str.strip()
-            unique_vals = train_values.nunique()
-
-            if unique_vals <= 50:
+            train_values = normal_train[col].fillna("").astype(str).str.strip()
+            if train_values.nunique() <= 50:
                 ohe = make_onehot(sparse_output=False, handle_unknown="ignore")
                 ohe.fit(train_values.to_frame())
-                transformed = ohe.transform(
-                    df[col].fillna("").astype(str).str.strip().to_frame()
+
+                tr_enc = ohe.transform(
+                    train_df[col].fillna("").astype(str).str.strip().to_frame()
                 )
-                if hasattr(transformed, "toarray"):
-                    transformed = transformed.toarray()
-                cats = [str(x) for x in ohe.categories_[0]]
-                col_names = [f"{col}_{c}" for c in cats]
-                df_encoded = pd.DataFrame(
-                    transformed, columns=col_names, index=df.index
+                te_enc = ohe.transform(
+                    test_df[col].fillna("").astype(str).str.strip().to_frame()
                 )
-                encoded_parts.append(df_encoded)
+
+                cats = [f"{col}_{str(x)}" for x in ohe.categories_[0]]
+                encoded_parts_train.append(
+                    pd.DataFrame(tr_enc, columns=cats, index=train_df.index)
+                )
+                encoded_parts_test.append(
+                    pd.DataFrame(te_enc, columns=cats, index=test_df.index)
+                )
                 encoders[col] = ("onehot", ohe)
-                encoded_cols.extend(col_names)
+                encoded_cols.extend(cats)
             else:
                 freq_map = train_values.value_counts(normalize=True).to_dict()
-                encoded_series = (
-                    df[col]
+                encoded_parts_train.append(
+                    train_df[col]
                     .fillna("")
                     .astype(str)
-                    .str.strip()
                     .map(freq_map)
                     .fillna(0)
                     .rename(f"{col}_freq")
                 )
-                encoded_parts.append(encoded_series.to_frame())
+                encoded_parts_test.append(
+                    test_df[col]
+                    .fillna("")
+                    .astype(str)
+                    .map(freq_map)
+                    .fillna(0)
+                    .rename(f"{col}_freq")
+                )
                 encoders[col] = ("freq", freq_map)
                 encoded_cols.append(f"{col}_freq")
 
-        # 8. Re-assemble DataFrame
-        non_numeric_cols = [
-            c for c in df.columns if df[c].dtype == "object" and c not in protected
-        ]
-        df = df.drop(columns=non_numeric_cols, errors="ignore")
+        # 7. Re-assemble and Drop objects
+        train_df = train_df.drop(columns=cat_candidates, errors="ignore")
+        test_df = test_df.drop(columns=cat_candidates, errors="ignore")
 
-        if encoded_parts:
-            df = pd.concat([df] + encoded_parts, axis=1)
+        if encoded_parts_train:
+            train_df = pd.concat([train_df] + encoded_parts_train, axis=1)
+            test_df = pd.concat([test_df] + encoded_parts_test, axis=1)
 
-        df = df.fillna(0)
+        train_df = train_df.fillna(0)
+        test_df = test_df.fillna(0)
 
-        # 9. Split train/test (this time train includes anomalies)
-        train = df.copy()
-        test = df.copy()
-
-        logging.info("Train class distribution:\n%s", train[label_col].value_counts())
-        logging.info("Test class distribution:\n%s", test[label_col].value_counts())
-
-        # 10. Save to parquet
+        # 8. Save to parquet
         cols_order = ["asset_id", "asset", "timestamp"] + [
-            c for c in df.columns if c not in ("asset_id", "asset", "timestamp")
+            c for c in train_df.columns if c not in ("asset_id", "asset", "timestamp")
         ]
-        train = train[cols_order]
-        test = test[cols_order]
+        train_df = train_df[cols_order]
+        test_df = test_df[cols_order]
 
         train_path = os.path.join(output_dir, f"{dataset_name}_train.parquet")
         test_path = os.path.join(output_dir, f"{dataset_name}_test.parquet")
-        train.to_parquet(train_path, index=False)
-        test.to_parquet(test_path, index=False)
+        train_df.to_parquet(train_path, index=False)
+        test_df.to_parquet(test_path, index=False)
 
         # Save preprocessing artifacts
         joblib.dump(scaler, os.path.join(artifacts_dir, f"{dataset_name}_scaler.pkl"))
@@ -201,15 +186,23 @@ def preprocess_dataset(
             "numeric": numeric_cols,
             "categorical": cat_candidates,
             "encoded": encoded_cols,
-            "all": [c for c in df.columns if c != label_col],
+            "all": [
+                c
+                for c in train_df.columns
+                if c not in ("asset_id", "asset", "timestamp", label_col)
+            ],
         }
         with open(
             os.path.join(artifacts_dir, f"{dataset_name}_features.json"), "w"
         ) as fh:
             json.dump(feature_list, fh, indent=2)
 
-        logging.info("%s processed", dataset_name)
-        logging.info("Train: %s, Test: %s", train.shape, test.shape)
+        logging.info(
+            "%s processed. Train: %s, Test: %s",
+            dataset_name,
+            train_df.shape,
+            test_df.shape,
+        )
 
         return {
             "train_path": train_path,
@@ -221,22 +214,17 @@ def preprocess_dataset(
 
     except Exception as e:
         logging.error("Failed processing %s: %s", dataset_name, e)
+        # --- RESTORED TRACEBACK ---
         logging.debug(traceback.format_exc())
         raise
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default=None,
-        help="Process a single dataset id (e.g. iot_fridge)",
-    )
+    parser.add_argument("--dataset", type=str, default=None)
     args = parser.parse_args()
 
     datasets = {
-        # IoT
         "iot_fridge": "data/raw/IoT_Fridge.csv",
         "iot_garage": "data/raw/IoT_Garage_Door.csv",
         "iot_gps": "data/raw/IoT_GPS_Tracker.csv",
@@ -244,37 +232,24 @@ if __name__ == "__main__":
         "iot_motion": "data/raw/IoT_Motion_Light.csv",
         "iot_thermo": "data/raw/IoT_Thermostat.csv",
         "iot_weather": "data/raw/IoT_Weather.csv",
-        # Linux
         "linux_disk1": "data/raw/linux_disk_1.csv",
         "linux_disk2": "data/raw/linux_disk_2.csv",
         "linux_mem1": "data/raw/linux_memory1.csv",
         "linux_mem2": "data/raw/linux_memory2.csv",
         "linux_proc1": "data/raw/linux_process_1.csv",
         "linux_proc2": "data/raw/linux_process_2.csv",
-        # Windows
         "win7": "data/raw/windows7_dataset.csv",
         "win10": "data/raw/windows10_dataset.csv",
     }
 
-    if args.dataset:
-        if args.dataset not in datasets:
-            logging.error(
-                "Unknown dataset id '%s'. Available: %s",
-                args.dataset,
-                list(datasets.keys()),
-            )
-        else:
-            path = datasets[args.dataset]
-            if not os.path.exists(path):
-                logging.error("File not found: %s", path)
-            else:
-                preprocess_dataset(path, args.dataset)
+    if args.dataset and args.dataset in datasets:
+        preprocess_dataset(datasets[args.dataset], args.dataset)
     else:
-        for dataset_id, path in datasets.items():
+        for d_id, path in datasets.items():
             if os.path.exists(path):
                 try:
-                    preprocess_dataset(path, dataset_id)
+                    preprocess_dataset(path, d_id)
                 except Exception as exc:
-                    logging.error("Processing %s failed: %s", dataset_id, exc)
+                    logging.error("Processing %s failed: %s", d_id, exc)
             else:
-                logging.warning("Skipping %s (file not found: %s)", dataset_id, path)
+                logging.warning("Skipping %s (file not found: %s)", d_id, path)

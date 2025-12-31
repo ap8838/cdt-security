@@ -1,10 +1,12 @@
 import argparse
 import json
 import os
+
 import pandas as pd
 import torch
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
+
 from src.models.ganomaly import GANomaly
 from src.utils.seed import set_seed
 
@@ -34,8 +36,9 @@ def train_ganomaly(
         features = json.load(f)
     cols = [c for c in features["all"] if c not in ("asset_id", "timestamp", "label")]
 
-    # load train parquet (normal only)
+    # load train parquet and filter for Normal data (label=0)
     df = pd.read_parquet(train_file)
+    df = df[df["label"] == 0].copy()
     x = (
         df[cols]
         .apply(pd.to_numeric, errors="coerce")

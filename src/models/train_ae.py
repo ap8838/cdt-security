@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -34,8 +35,9 @@ def train_autoencoder(dataset: str, features_file=None, epochs=20, lr=1e-3, seed
     cols = features["all"]
     cols = [c for c in cols if c not in ("asset_id", "timestamp", "label")]
 
-    # 2. Load train parquet (normal only)
+    # 2. Load train parquet and filter for Normal data (label=0)
     df = pd.read_parquet(train_file)
+    df = df[df["label"] == 0].copy()
 
     # Keep only numeric data
     x = (

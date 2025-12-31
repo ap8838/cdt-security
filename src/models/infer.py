@@ -2,10 +2,12 @@ import argparse
 import glob
 import json
 from pathlib import Path
+
 import joblib
 import pandas as pd
 import torch
-from autoencoder import Autoencoder
+
+from src.models.autoencoder import Autoencoder
 from src.utils.seed import set_seed
 
 
