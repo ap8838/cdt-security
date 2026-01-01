@@ -50,12 +50,16 @@ def evaluate_ganomaly(dataset, features_file=None):
         scores = (recon_err + latent_err).cpu().numpy()
 
     y_pred = (scores > threshold).astype(int)
+
+    # Check for single-class data (only normal samples in test set)
+    num_classes = len(set(y_true))
+
     metrics = {
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "roc_auc": (
-            float(roc_auc_score(y_true, scores)) if len(set(y_true)) > 1 else None
+            float(roc_auc_score(y_true, scores)) if num_classes > 1 else None
         ),
         "threshold": threshold,
     }
@@ -63,6 +67,11 @@ def evaluate_ganomaly(dataset, features_file=None):
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(metrics, f, indent=2)
+
+    # Added logging to explain None/NaN results for the research paper context
+    if num_classes <= 1:
+        print(f" [!] {dataset}: No anomalies in test set. Metrics reflect False Positive behavior only.")
+
     print(f" [{dataset}] GANomaly evaluation complete: {metrics}")
 
 

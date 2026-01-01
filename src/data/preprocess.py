@@ -31,10 +31,10 @@ def _is_numeric_like(series: pd.Series, thresh: float = 0.9) -> bool:
 
 
 def preprocess_dataset(
-    csv_path: str,
-    dataset_name: str,
-    output_dir: str = "data/processed",
-    artifacts_dir: str = "artifacts/preproc",
+        csv_path: str,
+        dataset_name: str,
+        output_dir: str = "data/processed",
+        artifacts_dir: str = "artifacts/preproc",
 ) -> Dict[str, str]:
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(artifacts_dir, exist_ok=True)
@@ -54,17 +54,27 @@ def preprocess_dataset(
         # 2. Create timestamp column
         if "date" in df.columns and "time" in df.columns:
             combined = (
-                df["date"].astype(str).str.strip()
-                + " "
-                + df["time"].astype(str).str.strip()
+                    df["date"].astype(str).str.strip()
+                    + " "
+                    + df["time"].astype(str).str.strip()
             )
-            df["timestamp"] = pd.to_datetime(combined, errors="coerce")
+            # --- FIX: SPECIFY FORMAT TO REMOVE WARNING AND ENSURE SORT ACCURACY ---
+            # Format %d-%b-%y matches "01-Feb-23"
+            df["timestamp"] = pd.to_datetime(
+                combined, format="%d-%b-%y %H:%M:%S", errors="coerce"
+            )
+
+            # Fallback for non-matching rows (if any)
+            mask = df["timestamp"].isna()
+            if mask.any():
+                df.loc[mask, "timestamp"] = pd.to_datetime(combined[mask], errors="coerce")
+
             df.drop(columns=["date", "time"], inplace=True, errors="ignore")
         elif "ts" in df.columns:
             df["timestamp"] = pd.to_datetime(df["ts"], unit="s", errors="coerce")
             df.drop(columns=["ts"], inplace=True, errors="ignore")
 
-        # --- MANDATORY FIX: Chronological Sort ---
+        #  Chronological Sort ---
         df = df.sort_values("timestamp").reset_index(drop=True)
 
         # 3. Add identifiers
@@ -88,7 +98,7 @@ def preprocess_dataset(
             else:
                 cat_candidates.append(c)
 
-        # --- MANDATORY FIX: Chronological Split (80/20) ---
+        #  Chronological Split (80/20) ---
         split_idx = int(len(df) * 0.8)
         train_df = df.iloc[:split_idx].copy()
         test_df = df.iloc[split_idx:].copy()
@@ -193,7 +203,7 @@ def preprocess_dataset(
             ],
         }
         with open(
-            os.path.join(artifacts_dir, f"{dataset_name}_features.json"), "w"
+                os.path.join(artifacts_dir, f"{dataset_name}_features.json"), "w"
         ) as fh:
             json.dump(feature_list, fh, indent=2)
 
@@ -214,7 +224,6 @@ def preprocess_dataset(
 
     except Exception as e:
         logging.error("Failed processing %s: %s", dataset_name, e)
-        # --- RESTORED TRACEBACK ---
         logging.debug(traceback.format_exc())
         raise
 

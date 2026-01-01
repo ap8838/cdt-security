@@ -2,6 +2,8 @@ import argparse
 import glob
 import json
 import os
+
+import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
@@ -52,13 +54,21 @@ def evaluate_autoencoder(dataset, features_file=None, seed=42):
 
     y_pred = (errors > threshold).astype(int)
 
+    # Check if we have both classes (0 and 1) to calculate ROC AUC
+    has_both_classes = len(np.unique(y_true)) > 1
+
     report = {
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-        "roc_auc": float(roc_auc_score(y_true, errors)),
+        "roc_auc": float(roc_auc_score(y_true, errors)) if has_both_classes else None,
         "threshold": threshold,
+        "test_samples": len(y_true),
+        "test_anomalies": int(np.sum(y_true))
     }
+
+    if not has_both_classes:
+        print(f" [!] {dataset}: Test set contains ONLY class {np.unique(y_true)}. ROC-AUC is undefined.")
 
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:

@@ -29,6 +29,7 @@ python scripts/run_models.py ae --dataset iot_fridge
 or
 python scripts/run_models.py ae
 
+p.s: Some datasets contain only normal samples in the test split after chronological partitioning. In such cases, ROC-AUC is undefined and anomaly detection metrics are reported as zero. This reflects real-world deployment scenarios where anomalies may be absent during evaluation windows.
 
 GANomaly:
 

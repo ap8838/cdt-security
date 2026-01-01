@@ -64,30 +64,21 @@ def train_ganomaly(
         recon, z, z_hat, d_real, d_fake = model(x_train)
 
         # --- Loss Calculation with Robust Fallback (from second code) ---
-        used_lambdas = False
+        # --- Loss Calculation with Robust Fallback ---
+        used_lambdas = True  # We consider them "used" because we apply them manually
         try:
-            # Try calling with lambda weights (newer signature)
-            total_loss, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
-                x_train,
-                recon,
-                z,
-                z_hat,
-                d_real,
-                d_fake,
-                lambda_adv=lambda_adv,
-                lambda_latent=lambda_latent,
+            # Get the raw component losses
+            _, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
+                x_train, recon, z, z_hat, d_real, d_fake,
             )
-            used_lambdas = True
         except TypeError:
-            # Fallback to older signature and calculate weighted loss externally
-            total_loss, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
+            # Fallback if the signature is different
+            _, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
                 x_train, recon, z, z_hat, d_real, d_fake
             )
-            # Apply weights manually for total_loss calculation in this scenario
-            total_loss = (
-                recon_loss + lambda_latent * latent_loss + lambda_adv * adv_loss
-            )
 
+        # ALWAYS apply weights manually here to ensure consistency
+        total_loss = recon_loss + (lambda_latent * latent_loss) + (lambda_adv * adv_loss)
         total_loss.backward()
         optimizer.step()
 
@@ -107,23 +98,16 @@ def train_ganomaly(
 
             # Use same robust method for validation loss
             try:
-                val_loss, val_recon, val_latent, val_adv = GANomaly.loss_function(
-                    x_val,
-                    recon_v,
-                    z_v,
-                    z_hat_v,
-                    d_real_v,
-                    d_fake_v,
-                    lambda_adv=lambda_adv,
-                    lambda_latent=lambda_latent,
+                _, val_recon, val_latent, val_adv = GANomaly.loss_function(
+                    x_val, recon_v, z_v, z_hat_v, d_real_v, d_fake_v,
                 )
             except TypeError:
-                val_loss, val_recon, val_latent, val_adv = GANomaly.loss_function(
+                _, val_recon, val_latent, val_adv = GANomaly.loss_function(
                     x_val, recon_v, z_v, z_hat_v, d_real_v, d_fake_v
                 )
-                val_loss = (
-                    val_recon + lambda_latent * val_latent + lambda_adv * val_adv
-                )  # Calculate weighted loss externally
+
+            # Apply weights manually for validation total loss
+            val_loss = val_recon + (lambda_latent * val_latent) + (lambda_adv * val_adv)
 
         print(
             f"[{dataset}] Epoch {epoch + 1}/{epochs}, "
