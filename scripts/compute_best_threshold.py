@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import precision_recall_curve, roc_curve
-from src.utils.temporal import make_sliding_windows  # Added import
 
 # Add project root to path and import temporal logic
 ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -46,10 +45,6 @@ def load_common_data(dataset):
 
 def load_ae_scores(dataset):
     from src.models.autoencoder import Autoencoder
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
     x, y, features = load_common_data(dataset)
 
     # AE is POINTWISE (No windows)
@@ -68,43 +63,24 @@ def load_ae_scores(dataset):
 
 def load_ganomaly_scores(dataset, window=5):
     from src.models.ganomaly import GANomaly
-<<<<<<< Updated upstream
-
-    # Load original point-wise data
-    x_raw, y_raw, features = load_common_data(dataset)
-
-    #  TEMPORAL WINDOWING (Commit A)
-    # Hardcoded window=5 for consistency in v1
-    x, y = make_sliding_windows(x_raw, y_raw, window=5)
-=======
     x, y, features = load_common_data(dataset)
->>>>>>> Stashed changes
 
     # Apply sliding window logic to match GANomaly V1 training
     if window > 1:
         x, y = make_sliding_windows(x, y, window=window)
 
     device = "cpu"
-    # input_dim is automatically handled by the windowed shape[1]
     model = GANomaly(input_dim=x.shape[1]).to(device)
     model.load_state_dict(
         torch.load(f"artifacts/models/{dataset}_ganomaly.pt", map_location=device)
     )
     model.eval()
-
     with torch.no_grad():
         xt = torch.tensor(x, dtype=torch.float32).to(device)
         recon, z, z_hat, _, _ = model(xt)
-<<<<<<< Updated upstream
-
-        # Calculate scores using windowed reconstruction and latent error
-        recon_err = torch.mean((xt.to(device) - recon) ** 2, dim=1)
-=======
         recon_err = torch.mean((xt - recon) ** 2, dim=1)
->>>>>>> Stashed changes
         latent_err = torch.mean((z - z_hat) ** 2, dim=1)
         scores = (recon_err + latent_err).cpu().numpy()
-
     return scores, y
 
 
@@ -146,11 +122,13 @@ def main():
                 scores, y = load_ae_scores(ds)
                 best, tpr, fpr = choose_threshold_roc(scores, y)
                 method = "ROC"
+                fname = f"artifacts/models/{ds}_threshold.json"
             else:
                 # GANomaly uses windows
                 scores, y = load_ganomaly_scores(ds, window=args.window)
                 best, tpr, fpr = choose_threshold_f1(scores, y)
                 method = "Max-F1"
+                fname = f"artifacts/models/{ds}_ganomaly_threshold.json"
         except Exception as e:
             print(f"  Skipping {ds} — error: {e}")
             continue
@@ -159,14 +137,13 @@ def main():
             print(f"  No positive class in test set for {ds} - skipping threshold optimization")
             continue
 
-        fname = f"artifacts/models/{ds}_{args.model}_threshold.json"
         threshold_value = float(best)
         with open(fname, "w") as fh:
-            json.dump({"threshold": threshold_value}, fh)
+            json.dump({"threshold": threshold_value}, fh, indent=2)
 
         print(f" [{method}] Threshold {threshold_value:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}")
 
-    print("\n All done — thresholds saved to artifacts/models/*.json")
+    print("\n All done — thresholds saved/updated in artifacts/models/*.json")
 
 
 if __name__ == "__main__":
