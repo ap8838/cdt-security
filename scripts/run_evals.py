@@ -16,15 +16,28 @@ def get_datasets():
 
 def eval_ae(dataset):
     print(f" [AE] Evaluating Autoencoder for: {dataset}...")
+    # AE remains pointwise
     subprocess.run(
         [sys.executable, "-m", "src.models.eval_ae", "--dataset", dataset],
         check=False
     )
 
+<<<<<<< Updated upstream
 def eval_ganomaly(dataset, window=1):
     print(f" [GAN] Evaluating GANomaly for: {dataset} (Window: {window})...")
     subprocess.run(
         [sys.executable, "-m", "src.models.eval_ganomaly", "--dataset", dataset, "--window", str(window)],
+=======
+
+def eval_ganomaly(dataset, window=5):
+    print(f" [GAN] Evaluating GANomaly for: {dataset} (Window: {window})...")
+    subprocess.run(
+        [
+            sys.executable, "-m", "src.models.eval_ganomaly",
+            "--dataset", dataset,
+            "--window", str(window)
+        ],
+>>>>>>> Stashed changes
         check=False
     )
 
@@ -36,7 +49,11 @@ def main():
         help="Which model type to evaluate: 'ae', 'ganomaly', or 'both'"
     )
     parser.add_argument("--dataset", default="all", help="Specific dataset name or 'all'")
+<<<<<<< Updated upstream
     parser.add_argument("--window", type=int, default=1, help="Window size used during training")
+=======
+    parser.add_argument("--window", type=int, default=5, help="Window size for GANomaly (V1)")
+>>>>>>> Stashed changes
 
     args = parser.parse_args()
 

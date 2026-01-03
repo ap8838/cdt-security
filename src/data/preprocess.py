@@ -107,8 +107,20 @@ def preprocess_dataset(
             else:
                 cat_candidates.append(c)
 
+<<<<<<< Updated upstream
         logging.info("Numeric cols: %s", numeric_cols)
         logging.info("Categorical candidates: %s", cat_candidates)
+=======
+        # --- Version 1: Linux-only chronological split fix ---
+        if dataset_name.startswith("linux"):
+            split_ratio = 0.6
+        else:
+            split_ratio = 0.8
+
+        split_idx = int(len(df) * split_ratio)
+        train_df = df.iloc[:split_idx].copy()
+        test_df = df.iloc[split_idx:].copy()
+>>>>>>> Stashed changes
 
         # 6. Fit scaler on normal rows only (label=0)
         normal_df = df[df[label_col] == 0].copy()
