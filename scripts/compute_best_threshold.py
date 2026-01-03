@@ -116,20 +116,18 @@ def main():
                 scores, y = load_ae_scores(ds)
                 best, tpr, fpr = choose_threshold_roc(scores, y)
                 method = "ROC"
-                # Match train_ae.py: artifacts/models/{dataset}_threshold.json
                 fname = f"artifacts/models/{ds}_threshold.json"
             else:
                 scores, y = load_ganomaly_scores(ds)
                 best, tpr, fpr = choose_threshold_f1(scores, y)
                 method = "Max-F1"
-                # Match train_ganomaly.py: artifacts/models/{dataset}_ganomaly_threshold.json
                 fname = f"artifacts/models/{ds}_ganomaly_threshold.json"
         except Exception as e:
-            print("⚠️  Skipping", ds, "— error loading model/data:", e)
+            print("  Skipping", ds, "— error loading model/data:", e)
             continue
 
         if len(np.unique(y)) < 2:
-            print("⚠️  No positive class in test set for", ds, "- skipping")
+            print("  No positive class in test set for", ds, "- skipping")
             continue
 
         threshold_value = float(best)
@@ -138,10 +136,10 @@ def main():
             json.dump({"threshold": threshold_value}, fh, indent=2)
 
         print(
-            f"✅ [{method}] Threshold {threshold_value:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}"
+            f" [{method}] Threshold {threshold_value:.6f} | TPR={tpr:.3f}, FPR={fpr:.3f} -> {fname}"
         )
 
-    print("\n✅ All done — thresholds saved/updated in artifacts/models/*.json")
+    print("\n All done — thresholds saved/updated in artifacts/models/*.json")
 
 
 if __name__ == "__main__":

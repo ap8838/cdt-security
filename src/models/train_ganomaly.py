@@ -84,10 +84,10 @@ def train_ganomaly(
 
         # --- Stability Checks (from first code) ---
         if not torch.isfinite(total_loss.detach()):
-            print("❗ Non-finite loss detected — stopping early")
+            print(" Non-finite loss detected — stopping early")
             break
         if total_loss.item() > 1e6:
-            print("❗ Loss exploded >1e6 — stopping early")
+            print(" Loss exploded >1e6 — stopping early")
             break
         # ------------------------------------------
 

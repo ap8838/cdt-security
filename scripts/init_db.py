@@ -26,4 +26,4 @@ CREATE TABLE IF NOT EXISTS alerts (
 
 conn.commit()
 conn.close()
-print("✅ Alerts table created .")
+print(" Alerts table created .")

@@ -18,31 +18,31 @@ def sample_parquet(tmp_path_factory):
     csv_path = "tests/sample_data/IoT_Fridge.csv"
     df = pd.read_csv(csv_path)
 
-    # ✅ Merge date+time -> timestamp
+    #  Merge date+time -> timestamp
     if {"date", "time"}.issubset(df.columns):
         df["timestamp"] = pd.to_datetime(df["date"] + " " + df["time"])
         df = df.drop(columns=["date", "time"])
 
-    # ✅ Add dummy asset_id if missing
+    #  Add dummy asset_id if missing
     if "asset_id" not in df.columns:
         df["asset_id"] = "iot_fridge"
 
-    # ✅ Add labels if missing
+    #  Add labels if missing
     if "label" not in df.columns:
         df["label"] = [0] * (len(df) // 2) + [1] * (len(df) - len(df) // 2)
 
-    # ✅ Split into train (normal only) and test (all)
+    #  Split into train (normal only) and test (all)
     train_df = df[df["label"] == 0].copy()
     test_df = df.copy()
 
-    # ✅ Save parquet into temp dir
+    #  Save parquet into temp dir
     out_dir = tmp_path_factory.mktemp("processed")
     train_file = out_dir / "iot_fridge_train.parquet"
     test_file = out_dir / "iot_fridge_test.parquet"
     train_df.to_parquet(train_file, index=False)
     test_df.to_parquet(test_file, index=False)
 
-    # ✅ Minimal feature list JSON
+    #  Minimal feature list JSON
     features = {
         "all": [c for c in df.columns if c not in ("label",)],
     }
@@ -61,13 +61,13 @@ def sample_parquet(tmp_path_factory):
 def test_train_and_eval(sample_parquet, tmp_path):
     dataset = "iot_fridge"
 
-    # ✅ Create expected project dirs
+    #  Create expected project dirs
     os.makedirs("data/processed", exist_ok=True)
     os.makedirs("artifacts/preproc", exist_ok=True)
     os.makedirs("artifacts/models", exist_ok=True)
     os.makedirs("artifacts/reports", exist_ok=True)
 
-    # ✅ Copy parquet + features.json into the locations train/eval expect
+    #  Copy parquet + features.json into the locations train/eval expect
     shutil.copy(sample_parquet["train_file"], f"data/processed/{dataset}_train.parquet")
     shutil.copy(sample_parquet["test_file"], f"data/processed/{dataset}_test.parquet")
     shutil.copy(
@@ -75,7 +75,7 @@ def test_train_and_eval(sample_parquet, tmp_path):
         f"artifacts/preproc/{dataset}_features.json",
     )
 
-    # ✅ Train
+    #  Train
     train_autoencoder(
         dataset=dataset,
         features_file=f"artifacts/preproc/{dataset}_features.json",
@@ -83,7 +83,7 @@ def test_train_and_eval(sample_parquet, tmp_path):
         lr=1e-3,
     )
 
-    # ✅ Eval
+    #  Eval
     evaluate_autoencoder(
         dataset=dataset,
         features_file=f"artifacts/preproc/{dataset}_features.json",

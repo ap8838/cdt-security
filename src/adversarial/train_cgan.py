@@ -115,7 +115,7 @@ if __name__ == "__main__":
     )
     p.add_argument("--dataset", required=True, help="Dataset name (e.g. iot_fridge)")
 
-    # ✅ Optional overrides for batch scripts
+    #  Optional overrides for batch scripts
     p.add_argument("--parquet", help="Path to parquet file")
     p.add_argument("--features", help="Path to features.json")
     p.add_argument("--scaler", help="Path to scaler.pkl")

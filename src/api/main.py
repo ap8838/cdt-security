@@ -93,9 +93,9 @@ if ui_dist.exists():
 # Blockchain
 try:
     bc_client = BlockchainClient()
-    print("✅ Blockchain client initialized")
+    print(" Blockchain client initialized")
 except Exception as bc_err:  # Use specific name for outer scope error
-    print("⚠️ Blockchain not initialized:", bc_err)
+    print(" Blockchain not initialized:", bc_err)
     bc_client = None
 
 
@@ -377,11 +377,11 @@ def generate_adversarial_samples(
                     if r.get("is_anomaly"):
                         anomalies += 1
                 else:
-                    print("⚠️ POST failed:", resp.status_code)
+                    print(" POST failed:", resp.status_code)
             except (
                 requests.exceptions.RequestException
             ) as req_err:  # Specific exception
-                print("⚠️ POST error:", req_err)
+                print(" POST error:", req_err)
 
     return {
         "dataset": dataset,

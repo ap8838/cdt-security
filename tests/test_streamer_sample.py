@@ -1,4 +1,3 @@
-# tests/test_streamer_sample.py
 import json
 import sqlite3
 from pathlib import Path
