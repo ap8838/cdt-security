@@ -37,6 +37,12 @@ python scripts/run_models.py ganomaly --dataset iot_fridge
 or
 python scripts/run_models.py ganomaly
 
+# Evaluate AE (Pointwise)
+python scripts/run_evals.py ae
+
+# Evaluate GANomaly 
+python scripts/run_evals.py ganomaly 
+
 setup thresholds for both models with :
 python scripts/compute_best_threshold.py --model ae
 python scripts/compute_best_threshold.py --model ganomaly
