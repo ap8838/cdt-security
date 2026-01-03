@@ -10,13 +10,8 @@ python -m venv .venv
 source .venv/bin/activate     # Linux/macOS
 .venv\Scripts\activate        # Windows PowerShell
 
-# install python dependencies
+# install dependencies
 pip install -r requirements.txt
-
-# install UI dependencies
-cd ui
-npm install
-cd ..
 also install ui dependencies from ui/package.json
 clean npm installation etc
 
@@ -34,23 +29,10 @@ python scripts/run_models.py ae --dataset iot_fridge
 or
 python scripts/run_models.py ae
 
+p.s: Some datasets contain only normal samples in the test split after chronological partitioning. In such cases, ROC-AUC is undefined and anomaly detection metrics are reported as zero. This reflects real-world deployment scenarios where anomalies may be absent during evaluation windows.
 
 GANomaly:
 
-<<<<<<< Updated upstream
-# Train Autoencoder (Point-wise)
-python scripts/run_models.py ae
-
-# Train GANomaly (Temporal Windowing - Window Size 5)
-python scripts/run_models.py ganomaly --window 5
-
-setup thresholds for both models with :
- python -m scripts.compute_best_threshold --model ae
- python -m scripts.compute_best_threshold --model ganomaly
-
-# 2.5 Evaluate Models
-# Generate the F1, Precision, and ROC-AUC reports
-=======
 python scripts/run_models.py ganomaly --dataset linux_disk1 --window 5
 # or run all
 python scripts/run_models.py ganomaly --window 5
@@ -63,7 +45,6 @@ python scripts/compute_best_threshold.py --model ganomaly --window 5
 python scripts/run_evals.py ae
 
 # Evaluate GANomaly (Temporal Window = 5)
->>>>>>> Stashed changes
 python scripts/run_evals.py ganomaly --window 5
 
 3. Local inference test
