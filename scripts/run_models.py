@@ -4,6 +4,7 @@ import subprocess
 import sys
 import argparse
 
+
 def get_datasets():
     datasets = [
         os.path.basename(f).replace("_train.parquet", "")
@@ -14,22 +15,17 @@ def get_datasets():
         sys.exit(1)
     return sorted(datasets)
 
+
 def run_ae(dataset):
     print(f"    Step: Autoencoder (Train & Eval)")
     # AE is pointwise - no window argument
     subprocess.run([sys.executable, "-m", "src.models.train_ae", "--dataset", dataset], check=True)
     subprocess.run([sys.executable, "-m", "src.models.eval_ae", "--dataset", dataset], check=True)
 
-<<<<<<< Updated upstream
-def run_ganomaly(dataset, window=1):
-    print(f"    Step: GANomaly (Train & Eval) | Window Size: {window}")
-    # Train
-=======
 
 def run_ganomaly(dataset, window=5):
     print(f"    Step: GANomaly (Train & Eval) | Window: {window}")
     # Using your specific tuned lambda values and the V1 window parameter
->>>>>>> Stashed changes
     subprocess.run([
         sys.executable, "-m", "src.models.train_ganomaly",
         "--dataset", dataset,
@@ -39,19 +35,12 @@ def run_ganomaly(dataset, window=5):
         "--lambda-latent", "15",
         "--window", str(window)
     ], check=True)
-<<<<<<< Updated upstream
-    # Eval (Window must match training)
-=======
->>>>>>> Stashed changes
     subprocess.run([
         sys.executable, "-m", "src.models.eval_ganomaly",
         "--dataset", dataset,
         "--window", str(window)
     ], check=True)
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 
 def main():
     parser = argparse.ArgumentParser(description="Master script to run AI models.")
@@ -61,11 +50,7 @@ def main():
         help="Which model(s) to run: 'ae', 'ganomaly', or 'both'"
     )
     parser.add_argument("--dataset", default="all", help="Specific dataset name or 'all'")
-<<<<<<< Updated upstream
-    parser.add_argument("--window", type=int, default=1, help="Sliding window size for GANomaly")
-=======
     parser.add_argument("--window", type=int, default=5, help="Window size for GANomaly (V1)")
->>>>>>> Stashed changes
 
     args = parser.parse_args()
 
@@ -88,6 +73,7 @@ def main():
             run_ganomaly(ds, window=args.window)
 
     print("\n All requested tasks completed successfully!")
+
 
 if __name__ == "__main__":
     main()

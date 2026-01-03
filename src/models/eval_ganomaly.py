@@ -6,16 +6,9 @@ import pandas as pd
 import torch
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 from src.models.ganomaly import GANomaly
-<<<<<<< Updated upstream
-from src.utils.temporal import make_sliding_windows  # Added import
-
-
-def evaluate_ganomaly(dataset, features_file=None, window=1):
-=======
 from src.utils.temporal import make_sliding_windows # Added V1
 
 def evaluate_ganomaly(dataset, features_file=None, window=5): # Added window param
->>>>>>> Stashed changes
     test_file = f"data/processed/{dataset}_test.parquet"
     if not os.path.exists(test_file):
         print(f" Skipping {dataset}: no test parquet.")
@@ -33,12 +26,7 @@ def evaluate_ganomaly(dataset, features_file=None, window=5): # Added window par
     cols = [c for c in features["all"] if c not in ("asset_id", "timestamp", "label")]
 
     df = pd.read_parquet(test_file)
-<<<<<<< Updated upstream
-
-    # --- Modified Data Loading & Windowing ---
-=======
     y = df["label"].astype(int).values
->>>>>>> Stashed changes
     x = (
         df[cols]
         .apply(pd.to_numeric, errors="coerce")
@@ -46,11 +34,6 @@ def evaluate_ganomaly(dataset, features_file=None, window=5): # Added window par
         .astype("float32")
         .values
     )
-    y = df["label"].astype(int).values
-
-    #  TEMPORAL WINDOWING
-    x, y_true = make_sliding_windows(x, y, window=window)
-    # ------------------------------------------
 
     # --- Version 1: Apply Sliding Window ---
     if window > 1:
@@ -59,11 +42,7 @@ def evaluate_ganomaly(dataset, features_file=None, window=5): # Added window par
         y_true = y
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-<<<<<<< Updated upstream
-    # The input_dim must match the training window (x.shape[1] handles this)
-=======
     # input_dim now automatically matches (features * window)
->>>>>>> Stashed changes
     model = GANomaly(input_dim=x.shape[1]).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
@@ -74,44 +53,32 @@ def evaluate_ganomaly(dataset, features_file=None, window=5): # Added window par
     with torch.no_grad():
         x_tensor = torch.tensor(x, dtype=torch.float32).to(device)
         recon, z, z_hat, _, _ = model(x_tensor)
-<<<<<<< Updated upstream
-
-        # Calculate scores based on reconstruction and latent error
-=======
->>>>>>> Stashed changes
         recon_err = torch.mean((x_tensor - recon) ** 2, dim=1)
         latent_err = torch.mean((z - z_hat) ** 2, dim=1)
         scores = (recon_err + latent_err).cpu().numpy()
 
     y_pred = (scores > threshold).astype(int)
-<<<<<<< Updated upstream
-=======
 
     # Check for single-class data
     num_classes = len(set(y_true))
 
->>>>>>> Stashed changes
     metrics = {
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "roc_auc": (
-            float(roc_auc_score(y_true, scores)) if len(set(y_true)) > 1 else None
+            float(roc_auc_score(y_true, scores)) if num_classes > 1 else None
         ),
         "threshold": threshold,
-        "window_size": window
     }
 
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(metrics, f, indent=2)
-<<<<<<< Updated upstream
-=======
 
     if num_classes <= 1:
         print(f" [!] {dataset}: No anomalies in test set. Metrics reflect False Positive behavior only.")
 
->>>>>>> Stashed changes
     print(f" [{dataset}] GANomaly evaluation complete: {metrics}")
 
 
@@ -119,17 +86,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", default="all")
     p.add_argument("--features_file", default=None)
-<<<<<<< Updated upstream
-    # Added window argument
-    p.add_argument(
-        "--window",
-        type=int,
-        default=1,
-        help="Temporal sliding window size (must match training window)",
-    )
-=======
     p.add_argument("--window", type=int, default=5) # Added V1
->>>>>>> Stashed changes
     args = p.parse_args()
 
     if args.dataset == "all":

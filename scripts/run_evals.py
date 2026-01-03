@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 
+
 def get_datasets():
     ds = [
         os.path.basename(p).replace("_test.parquet", "")
@@ -14,6 +15,7 @@ def get_datasets():
         sys.exit(1)
     return sorted(ds)
 
+
 def eval_ae(dataset):
     print(f" [AE] Evaluating Autoencoder for: {dataset}...")
     # AE remains pointwise
@@ -22,12 +24,6 @@ def eval_ae(dataset):
         check=False
     )
 
-<<<<<<< Updated upstream
-def eval_ganomaly(dataset, window=1):
-    print(f" [GAN] Evaluating GANomaly for: {dataset} (Window: {window})...")
-    subprocess.run(
-        [sys.executable, "-m", "src.models.eval_ganomaly", "--dataset", dataset, "--window", str(window)],
-=======
 
 def eval_ganomaly(dataset, window=5):
     print(f" [GAN] Evaluating GANomaly for: {dataset} (Window: {window})...")
@@ -37,9 +33,9 @@ def eval_ganomaly(dataset, window=5):
             "--dataset", dataset,
             "--window", str(window)
         ],
->>>>>>> Stashed changes
         check=False
     )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Master script to evaluate AI models.")
@@ -49,11 +45,7 @@ def main():
         help="Which model type to evaluate: 'ae', 'ganomaly', or 'both'"
     )
     parser.add_argument("--dataset", default="all", help="Specific dataset name or 'all'")
-<<<<<<< Updated upstream
-    parser.add_argument("--window", type=int, default=1, help="Window size used during training")
-=======
     parser.add_argument("--window", type=int, default=5, help="Window size for GANomaly (V1)")
->>>>>>> Stashed changes
 
     args = parser.parse_args()
 
@@ -64,7 +56,7 @@ def main():
 
     for ds in target_datasets:
         if ds not in all_datasets:
-            print(f"⚠  Dataset '{ds}' not found. Skipping...")
+            print(f"  Dataset '{ds}' not found. Skipping...")
             continue
 
         if args.mode in ["ae", "both"]:
@@ -74,6 +66,7 @@ def main():
             eval_ganomaly(ds, window=args.window)
 
     print("\n All requested evaluations completed!")
+
 
 if __name__ == "__main__":
     main()

@@ -1,25 +1,14 @@
 import argparse
 import json
 import os
+
 import pandas as pd
 import torch
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
+
 from src.models.ganomaly import GANomaly
 from src.utils.seed import set_seed
-<<<<<<< Updated upstream
-from src.utils.temporal import make_sliding_windows
-
-def train_ganomaly(
-        dataset: str,
-        features_file=None,
-        epochs=150,
-        lr=1e-4,
-        seed=42,
-        lambda_adv=1.0,
-        lambda_latent=1.0,
-        window=1,
-=======
 from src.utils.temporal import make_sliding_windows # Added V1
 
 
@@ -32,7 +21,6 @@ def train_ganomaly(
     lambda_adv=1.0,
     lambda_latent=1.0,
     window=5, # Added V1
->>>>>>> Stashed changes
 ):
     set_seed(seed)
 
@@ -50,8 +38,9 @@ def train_ganomaly(
         features = json.load(f)
     cols = [c for c in features["all"] if c not in ("asset_id", "timestamp", "label")]
 
-    # load train parquet (normal only)
+    # load train parquet and filter for Normal data (label=0)
     df = pd.read_parquet(train_file)
+    df = df[df["label"] == 0].copy()
     x = (
         df[cols]
         .apply(pd.to_numeric, errors="coerce")
@@ -60,11 +49,7 @@ def train_ganomaly(
         .values
     )
 
-<<<<<<< Updated upstream
-    #  TEMPORAL WINDOWING
-=======
     # --- Version 1: Apply Sliding Window ---
->>>>>>> Stashed changes
     if window > 1:
         x, _ = make_sliding_windows(x, window=window)
 
@@ -85,42 +70,17 @@ def train_ganomaly(
         recon, z, z_hat, d_real, d_fake = model(x_train)
 
         # --- Loss Calculation with Robust Fallback ---
-<<<<<<< Updated upstream
-        used_lambdas = False
-        try:
-            total_loss, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
-                x_train,
-                recon,
-                z,
-                z_hat,
-                d_real,
-                d_fake,
-                lambda_adv=lambda_adv,
-                lambda_latent=lambda_latent,
-=======
         used_lambdas = True
         try:
             _, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
                 x_train, recon, z, z_hat, d_real, d_fake,
->>>>>>> Stashed changes
             )
-            used_lambdas = True
         except TypeError:
-<<<<<<< Updated upstream
-            total_loss, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
-=======
             _, recon_loss, latent_loss, adv_loss = GANomaly.loss_function(
->>>>>>> Stashed changes
                 x_train, recon, z, z_hat, d_real, d_fake
             )
-            total_loss = (
-                    recon_loss + lambda_latent * latent_loss + lambda_adv * adv_loss
-            )
 
-<<<<<<< Updated upstream
-=======
         total_loss = recon_loss + (lambda_latent * latent_loss) + (lambda_adv * adv_loss)
->>>>>>> Stashed changes
         total_loss.backward()
         optimizer.step()
 
@@ -137,35 +97,20 @@ def train_ganomaly(
         with torch.no_grad():
             recon_v, z_v, z_hat_v, d_real_v, d_fake_v = model(x_val)
             try:
-                val_loss, val_recon, val_latent, val_adv = GANomaly.loss_function(
-                    x_val,
-                    recon_v,
-                    z_v,
-                    z_hat_v,
-                    d_real_v,
-                    d_fake_v,
-                    lambda_adv=lambda_adv,
-                    lambda_latent=lambda_latent,
+                _, val_recon, val_latent, val_adv = GANomaly.loss_function(
+                    x_val, recon_v, z_v, z_hat_v, d_real_v, d_fake_v,
                 )
             except TypeError:
-                val_loss, val_recon, val_latent, val_adv = GANomaly.loss_function(
+                _, val_recon, val_latent, val_adv = GANomaly.loss_function(
                     x_val, recon_v, z_v, z_hat_v, d_real_v, d_fake_v
                 )
-<<<<<<< Updated upstream
-                val_loss = (val_recon + lambda_latent * val_latent + lambda_adv * val_adv)
-=======
 
             val_loss = val_recon + (lambda_latent * val_latent) + (lambda_adv * val_adv)
->>>>>>> Stashed changes
 
         print(
             f"[{dataset}] Epoch {epoch + 1}/{epochs}, "
             f"Train Loss={total_loss.item():.6f}, Val Loss={val_loss.item():.6f}"
-<<<<<<< Updated upstream
-            + (f"  (using lambdas adv={lambda_adv}, latent={lambda_latent})" if used_lambdas else "")
-=======
             + (f" (lambdas: adv={lambda_adv}, latent={lambda_latent})" if used_lambdas else "")
->>>>>>> Stashed changes
         )
 
         train_log.append({
@@ -205,19 +150,13 @@ def train_ganomaly(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, help="Dataset name")
-    parser.add_argument("--epochs", type=int, default=150) # Set to 150
+    parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--features_file", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
-<<<<<<< Updated upstream
-    parser.add_argument("--lambda-adv", type=float, default=1.0)
-    parser.add_argument("--lambda-latent", type=float, default=1.0)
-    parser.add_argument("--window", type=int, default=1)
-=======
     parser.add_argument("--window", type=int, default=5) # Added V1
     parser.add_argument("--lambda-adv", type=float, default=1.0)
     parser.add_argument("--lambda-latent", type=float, default=1.0)
->>>>>>> Stashed changes
 
     args = parser.parse_args()
 
@@ -229,9 +168,5 @@ if __name__ == "__main__":
         seed=args.seed,
         lambda_adv=args.lambda_adv,
         lambda_latent=args.lambda_latent,
-<<<<<<< Updated upstream
-        window=args.window,
-=======
         window=args.window # Added V1
->>>>>>> Stashed changes
     )

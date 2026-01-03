@@ -7,7 +7,7 @@ def generate_all():
     models = glob.glob("artifacts/adversarial/*_cgan.pt")
     for model_path in models:
         dataset = os.path.basename(model_path).replace("_cgan.pt", "")
-        print(f"\n🧪 Generating synthetic samples for {dataset}")
+        print(f"\n Generating synthetic samples for {dataset}")
         features = f"artifacts/preproc/{dataset}_features.json"
         out = f"artifacts/adversarial/{dataset}_generated.parquet"
 
